@@ -18,9 +18,8 @@ jobs:
           script_stop: true
           script: |
             cd /var/www/weekook-dev
-            git clean -fd client/
-            git checkout -- .
-            git pull origin develop
+            git fetch origin develop
+            git reset --hard origin/develop
             npm install --workspaces --if-present
             npx prisma generate
             npx prisma db push --accept-data-loss
