@@ -782,24 +782,30 @@ export default function CreateMenuPage() {
                 <div className="border-t border-[#f0f0f5] mb-6" />
 
                 {/* Ingrédients (toujours fournis par le client) */}
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[14px] font-bold text-[#303044]">Ingrédients</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] text-[#828294]">Quantités pour</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={ingredientsBaseServings}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (!isNaN(val) && val > 0) scaleIngredients(val);
-                      }}
-                      className="w-[56px] h-[32px] px-2 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[8px] text-[13px] text-center text-[#111125] focus:outline-none focus:border-[#c1a0fd] transition-all"
-                    />
-                    <span className="text-[12px] text-[#828294]">personne(s)</span>
+                <p className="text-[14px] font-bold text-[#303044] mb-1">Ingrédients</p>
+                <p className="text-[12px] text-[#828294] mb-3">Fournis par le client — pour des raisons de sécurité alimentaire</p>
+
+                {/* Sélecteur nombre de personnes de référence */}
+                <div className="bg-[#f3ecff] border border-[#c1a0fd]/30 rounded-[12px] px-4 py-3 mb-4 flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#303044]">Pour combien de personnes ?</p>
+                    <p className="text-[12px] text-[#828294] mt-0.5">Les quantités seront ajustées proportionnellement</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => { if (ingredientsBaseServings > 1) scaleIngredients(ingredientsBaseServings - 1); }}
+                      disabled={ingredientsBaseServings <= 1}
+                      className="w-[32px] h-[32px] flex items-center justify-center bg-white border border-[#c1a0fd]/40 text-[#c1a0fd] rounded-[8px] text-[18px] font-bold leading-none hover:bg-[#c1a0fd] hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >−</button>
+                    <span className="w-[40px] text-center text-[16px] font-bold text-[#111125]">{ingredientsBaseServings}</span>
+                    <button
+                      type="button"
+                      onClick={() => scaleIngredients(ingredientsBaseServings + 1)}
+                      className="w-[32px] h-[32px] flex items-center justify-center bg-white border border-[#c1a0fd]/40 text-[#c1a0fd] rounded-[8px] text-[18px] font-bold leading-none hover:bg-[#c1a0fd] hover:text-white transition-all cursor-pointer"
+                    >+</button>
                   </div>
                 </div>
-                <p className="text-[12px] text-[#828294] mb-3">Fournis par le client — pour des raisons de sécurité alimentaire</p>
 
                 {ingredientsList.length > 0 && (
                   <div className="space-y-2 mb-3">
