@@ -114,7 +114,7 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false);
   // Confirmation suppression
   const [pendingDelete, setPendingDelete] = useState<
-    { type: 'message'; id: number } | { type: 'conversation'; id: number } | null
+    { type: 'message'; id: number } | { type: 'conversation'; userId: number; serviceId?: number } | null
   >(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -122,7 +122,7 @@ export default function MessagesPage() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Prevent re-opening the same conversation every time conversations refreshes
-  const autoOpenedForRef = useRef<number | null>(null);
+  const autoOpenedForRef = useRef<string | null>(null);
 
   // ── Chargement conversations
   const fetchConversations = useCallback(async () => {
@@ -143,7 +143,8 @@ export default function MessagesPage() {
   // ── Ouvrir conversation automatiquement si ?to=userId&service=serviceId (une seule fois par toUserId)
   useEffect(() => {
     if (!toUserId) return;
-    if (autoOpenedForRef.current === toUserId) return;
+    const autoOpenKey = `${toUserId}-${serviceIdParam ?? 'none'}`;
+    if (autoOpenedForRef.current === autoOpenKey) return;
 
     // Chercher dans les conversations existantes
     if (conversations.length > 0) {
@@ -151,7 +152,7 @@ export default function MessagesPage() {
         c.user.id === toUserId && (!serviceIdParam || c.service?.id === serviceIdParam)
       );
       if (existing) {
-        autoOpenedForRef.current = toUserId;
+        autoOpenedForRef.current = autoOpenKey;
         openConversation(existing);
         return;
       }
@@ -159,7 +160,7 @@ export default function MessagesPage() {
 
     // Pas de conversation existante et chargement terminé : créer un ghost avec données réelles
     if (!convLoading) {
-      autoOpenedForRef.current = toUserId;
+      autoOpenedForRef.current = autoOpenKey;
       (async () => {
         // Charger les infos du service (qui contient aussi le kooker)
         let serviceData: ServiceInfo | null = null;
@@ -316,8 +317,8 @@ export default function MessagesPage() {
     setPendingDelete({ type: 'message', id: messageId });
   };
 
-  const handleDeleteConversation = (partnerId: number) => {
-    setPendingDelete({ type: 'conversation', id: partnerId });
+  const handleDeleteConversation = (partnerId: number, serviceId?: number) => {
+    setPendingDelete({ type: 'conversation', userId: partnerId, serviceId });
   };
 
   // ── Confirmer et exécuter la suppression
@@ -329,9 +330,13 @@ export default function MessagesPage() {
         setMessages(prev => prev.filter(m => m.id !== pendingDelete.id));
         fetchConversations();
       } else {
-        await api.delete(`/messages/conversation/${pendingDelete.id}`);
-        setConversations(prev => prev.filter(c => c.user.id !== pendingDelete.id));
-        if (activeConv?.user.id === pendingDelete.id) setActiveConv(null);
+        const pd = pendingDelete as { type: 'conversation'; userId: number; serviceId?: number };
+        const serviceFilter = pd.serviceId ? `?serviceId=${pd.serviceId}` : '';
+        await api.delete(`/messages/conversation/${pd.userId}${serviceFilter}`);
+        setConversations(prev => prev.filter(c =>
+          !(c.user.id === pd.userId && c.service?.id === pd.serviceId)
+        ));
+        if (activeConv?.user.id === pd.userId && activeConv?.service?.id === pd.serviceId) setActiveConv(null);
         refreshUnread();
       }
     } catch (err: any) {
@@ -408,9 +413,9 @@ export default function MessagesPage() {
               ) : (
                 displayedConversations.map(conv => (
                   <div
-                    key={conv.user.id}
+                    key={`${conv.user.id}-${conv.service?.id ?? 'none'}`}
                     className={`conv-row relative flex items-center gap-3 px-4 py-3.5 border-b border-[#f0f0f0] last:border-0 transition-colors ${
-                      activeConv?.user.id === conv.user.id ? 'bg-[#f3ecff]' : 'hover:bg-[#fafafa]'
+                      activeConv?.user.id === conv.user.id && activeConv?.service?.id === conv.service?.id ? 'bg-[#f3ecff]' : 'hover:bg-[#fafafa]'
                     }`}
                   >
                     <button
@@ -446,7 +451,7 @@ export default function MessagesPage() {
                       )}
                     </button>
                     <button
-                      onClick={e => { e.stopPropagation(); handleDeleteConversation(conv.user.id); }}
+                      onClick={e => { e.stopPropagation(); handleDeleteConversation(conv.user.id, conv.service?.id); }}
                       className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#fee2e2] text-[#9ca3af] hover:text-[#ef4444]"
                       title="Supprimer la conversation"
                     >
