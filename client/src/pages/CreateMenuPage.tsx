@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -56,11 +56,9 @@ export default function CreateMenuPage() {
   const [koursDuration, setKoursDuration] = useState('');
   const [koursMaxParticipants, setKoursMaxParticipants] = useState('');
   const [koursDifficulty, setKoursDifficulty] = useState('Débutant');
-  const [koursMenuItems, setKoursMenuItems] = useState<MenuItem[]>([]);
-  const [koursNewItemName, setKoursNewItemName] = useState('');
-  const [koursNewItemDesc, setKoursNewItemDesc] = useState('');
 
   // KOOK fields
+  const kookTitleTouchedRef = useRef(false);
   const [kookTitle, setKookTitle] = useState('');
   const [kookDescription, setKookDescription] = useState('');
   const [kookPrice, setKookPrice] = useState('');
@@ -117,6 +115,10 @@ export default function CreateMenuPage() {
       if (next.length === 2) {
         toast.info('La 2ème offre est visible sous la première, en scrollant');
       }
+      // Auto-copie du titre COURS → KOOK quand KOOK est ajouté
+      if (type === 'KOOK' && !prev.includes('KOOK') && koursTitle.trim() && !kookTitleTouchedRef.current) {
+        setKookTitle(koursTitle.trim());
+      }
       return next;
     });
   };
@@ -132,19 +134,6 @@ export default function CreateMenuPage() {
     koursMaxParticipants.trim() !== '';
 
   const isKookDisabled = serviceTypes.includes('COURS') && serviceTypes.includes('KOOK') && !isKoursComplete;
-
-  // ────────────────────────── Menu Items Helpers ──────────────────────────
-
-  const addKoursItem = () => {
-    if (!koursNewItemName.trim()) return;
-    setKoursMenuItems((prev) => [...prev, { name: koursNewItemName.trim(), description: koursNewItemDesc.trim() }]);
-    setKoursNewItemName('');
-    setKoursNewItemDesc('');
-  };
-
-  const removeKoursItem = (idx: number) => {
-    setKoursMenuItems((prev) => prev.filter((_, i) => i !== idx));
-  };
 
   // ────────────────────────── Specialties ──────────────────────────
 
@@ -242,12 +231,6 @@ export default function CreateMenuPage() {
           constraints: equipmentClient.length > 0 ? equipmentClient : undefined,
           koursDifficulty: isKours ? koursDifficulty : undefined,
           koursLocation: isKours ? 'Chez le client' : undefined,
-          menuItems: isKours ? koursMenuItems.map((item, idx) => ({
-            category: 'Plat',
-            name: item.name,
-            description: item.description,
-            sortOrder: idx + 1,
-          })) : [],
           images: photos,
         };
         await api.post('/services', data);
@@ -374,6 +357,11 @@ export default function CreateMenuPage() {
                     type="text"
                     value={koursTitle}
                     onChange={(e) => setKoursTitle(e.target.value)}
+                    onBlur={() => {
+                      if (serviceTypes.includes('KOOK') && !kookTitleTouchedRef.current && koursTitle.trim()) {
+                        setKookTitle(koursTitle.trim());
+                      }
+                    }}
                     placeholder="Ex: Cours de cuisine italienne authentique"
                     className={inputClass}
                   />
@@ -514,61 +502,6 @@ export default function CreateMenuPage() {
                   </div>
                 </div>
 
-                {/* Programme du cours */}
-                <div>
-                  <h4 className="text-[15px] font-semibold text-[#111125] mb-3">Programme du cours</h4>
-
-                  {koursMenuItems.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      {koursMenuItems.map((item, idx) => (
-                        <div key={idx} className="flex items-start justify-between gap-3 bg-[#f3ecff] rounded-[12px] p-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[14px] font-semibold text-[#111125]">{item.name}</p>
-                            {item.description && (
-                              <p className="text-[13px] text-[#303044]/50 mt-0.5">{item.description}</p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeKoursItem(idx)}
-                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-[8px] hover:bg-red-50 text-[#303044]/30 hover:text-red-500 transition-all cursor-pointer"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="border-2 border-dashed border-[#e0e2ef] rounded-[16px] p-4">
-                    <div className="flex flex-col gap-3">
-                      <input
-                        type="text"
-                        value={koursNewItemName}
-                        onChange={(e) => setKoursNewItemName(e.target.value)}
-                        placeholder="Ex: Étape 1 — Préparation de la pâte"
-                        className={inputClass}
-                      />
-                      <input
-                        type="text"
-                        value={koursNewItemDesc}
-                        onChange={(e) => setKoursNewItemDesc(e.target.value)}
-                        placeholder="Description (optionnel)"
-                        className={inputClass}
-                      />
-                      <button
-                        type="button"
-                        onClick={addKoursItem}
-                        disabled={!koursNewItemName.trim()}
-                        className="h-[48px] flex items-center justify-center gap-2 bg-white border-2 border-[#c1a0fd] text-[#c1a0fd] text-[14px] font-semibold rounded-[12px] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f3ecff] cursor-pointer"
-                      >
-                        <Plus size={16} />
-                        Ajouter une étape
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
               </div>
 
             </>
@@ -606,7 +539,7 @@ export default function CreateMenuPage() {
                 <input
                   type="text"
                   value={kookTitle}
-                  onChange={(e) => setKookTitle(e.target.value)}
+                  onChange={(e) => { setKookTitle(e.target.value); kookTitleTouchedRef.current = true; }}
                   placeholder="ex: Menu méditerranéen complet"
                   className={inputClass}
                 />

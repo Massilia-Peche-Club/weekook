@@ -58,9 +58,6 @@ export default function EditMenuPage() {
   const [koursDuration, setKoursDuration] = useState('');
   const [koursMaxParticipants, setKoursMaxParticipants] = useState('');
   const [koursDifficulty, setKoursDifficulty] = useState('Débutant');
-  const [koursMenuItems, setKoursMenuItems] = useState<MenuItem[]>([]);
-  const [koursNewItemName, setKoursNewItemName] = useState('');
-  const [koursNewItemDesc, setKoursNewItemDesc] = useState('');
 
   // KOOK fields
   const [kookTitle, setKookTitle] = useState('');
@@ -158,13 +155,6 @@ export default function EditMenuPage() {
             setPhotos(s.images.map((img: any) => img.url));
           }
 
-          // Load menu items (COURS only)
-          if (s.menuItems && types.includes('COURS')) {
-            setKoursMenuItems(s.menuItems.map((m: any) => ({
-              name: m.name,
-              description: m.description || '',
-            })));
-          }
         }
       } catch {
         toast.error('Erreur lors du chargement');
@@ -202,17 +192,6 @@ export default function EditMenuPage() {
   const isKookDisabled = serviceTypes.includes('COURS') && serviceTypes.includes('KOOK') && !isKoursComplete;
 
   // ────────────────────────── Menu Items Helpers ──────────────────────────
-
-  const addKoursItem = () => {
-    if (!koursNewItemName.trim()) return;
-    setKoursMenuItems((prev) => [...prev, { name: koursNewItemName.trim(), description: koursNewItemDesc.trim() }]);
-    setKoursNewItemName('');
-    setKoursNewItemDesc('');
-  };
-
-  const removeKoursItem = (idx: number) => {
-    setKoursMenuItems((prev) => prev.filter((_, i) => i !== idx));
-  };
 
   // ────────────────────────── Specialties ──────────────────────────
 
@@ -309,12 +288,6 @@ export default function EditMenuPage() {
         constraints: equipmentClient.length > 0 ? equipmentClient : undefined,
         koursDifficulty: isKours ? koursDifficulty : undefined,
         koursLocation: isKours ? 'Chez le client' : undefined,
-        menuItems: isKours ? koursMenuItems.map((item, idx) => ({
-          category: 'Plat',
-          name: item.name,
-          description: item.description,
-          sortOrder: idx + 1,
-        })) : [],
         images: photos,
       };
       await api.put(`/services/${id}`, data);
@@ -562,59 +535,6 @@ export default function EditMenuPage() {
                   <option value="Intermédiaire">Intermédiaire</option>
                   <option value="Avancé">Avancé</option>
                 </select>
-              </div>
-
-              {/* Programme du cours */}
-              <div className="border-t border-[#e0e2ef] pt-6">
-                <h4 className="text-[15px] font-semibold text-[#111125] mb-4">Programme du cours</h4>
-
-                {koursMenuItems.length > 0 && (
-                  <div className="space-y-3 mb-5">
-                    {koursMenuItems.map((item, idx) => (
-                      <div key={idx} className="flex items-start justify-between gap-3 bg-[#f3ecff] rounded-[12px] p-4">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[14px] font-semibold text-[#111125]">{item.name}</p>
-                          {item.description && (
-                            <p className="text-[13px] text-[#111125]/50 mt-0.5">{item.description}</p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeKoursItem(idx)}
-                          className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-[8px] hover:bg-red-50 text-[#111125]/30 hover:text-red-500 transition-all"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={koursNewItemName}
-                    onChange={(e) => setKoursNewItemName(e.target.value)}
-                    placeholder="Étape du cours"
-                    className={inputClass + ' sm:flex-1'}
-                  />
-                  <input
-                    type="text"
-                    value={koursNewItemDesc}
-                    onChange={(e) => setKoursNewItemDesc(e.target.value)}
-                    placeholder="Description (optionnel)"
-                    className={inputClass + ' sm:flex-1'}
-                  />
-                  <button
-                    type="button"
-                    onClick={addKoursItem}
-                    disabled={!koursNewItemName.trim()}
-                    className="h-[48px] px-5 flex items-center justify-center gap-2 bg-[#c1a0fd] hover:bg-[#b090ed] text-white text-[13px] font-semibold rounded-[12px] transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    <Plus size={16} />
-                    Ajouter
-                  </button>
-                </div>
               </div>
 
             </div>
