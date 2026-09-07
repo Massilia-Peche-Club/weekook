@@ -70,6 +70,7 @@ export default function CreateMenuPage() {
 
   // Champs partagés COURS + KOOK — Ingrédients
   const [ingredientsList, setIngredientsList] = useState<{ name: string; quantity: string; unit: string }[]>([]);
+  const [ingredientsBaseServings, setIngredientsBaseServings] = useState(1);
   const [newIngName, setNewIngName] = useState('');
   const [newIngQty, setNewIngQty] = useState('');
   const [newIngUnit, setNewIngUnit] = useState('g');
@@ -193,6 +194,26 @@ export default function CreateMenuPage() {
     setAllergens((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   };
 
+  // ────────────────────────── Ingredient Scaling ──────────────────────────
+
+  const scaleIngredients = (newCount: number) => {
+    if (ingredientsBaseServings <= 0 || newCount <= 0 || ingredientsList.length === 0) {
+      setIngredientsBaseServings(newCount);
+      return;
+    }
+    const ratio = newCount / ingredientsBaseServings;
+    setIngredientsList((prev) =>
+      prev.map((ing) => {
+        const qty = parseFloat(ing.quantity);
+        if (isNaN(qty)) return ing;
+        const scaled = qty * ratio;
+        const formatted = Number.isInteger(scaled) ? String(scaled) : parseFloat(scaled.toFixed(2)).toString();
+        return { ...ing, quantity: formatted };
+      })
+    );
+    setIngredientsBaseServings(newCount);
+  };
+
   // ────────────────────────── Submit ──────────────────────────
 
   const canSubmit = serviceTypes.length > 0 && !isSubmitting;
@@ -216,6 +237,7 @@ export default function CreateMenuPage() {
           allergens: allergens,
           specialty: specialties.length > 0 ? specialties : undefined,
           ingredientsList: ingredientsList.length > 0 ? ingredientsList : undefined,
+          ingredientsBaseServings: ingredientsList.length > 0 ? ingredientsBaseServings : undefined,
           equipmentKooker: equipmentKooker.length > 0 ? equipmentKooker : undefined,
           constraints: equipmentClient.length > 0 ? equipmentClient : undefined,
           koursDifficulty: isKours ? koursDifficulty : undefined,
@@ -460,6 +482,10 @@ export default function CreateMenuPage() {
                     min="1"
                     value={koursMaxParticipants}
                     onChange={(e) => setKoursMaxParticipants(e.target.value)}
+                    onBlur={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val > 0 && ingredientsList.length > 0) scaleIngredients(val);
+                    }}
                     placeholder="8"
                     className={inputClass}
                   />
@@ -663,6 +689,10 @@ export default function CreateMenuPage() {
                     min="1"
                     value={kookMaxParticipants}
                     onChange={(e) => setKookMaxParticipants(e.target.value)}
+                    onBlur={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val > 0 && ingredientsList.length > 0) scaleIngredients(val);
+                    }}
                     placeholder="12"
                     className={inputClass}
                   />
@@ -752,7 +782,23 @@ export default function CreateMenuPage() {
                 <div className="border-t border-[#f0f0f5] mb-6" />
 
                 {/* Ingrédients (toujours fournis par le client) */}
-                <p className="text-[14px] font-bold text-[#303044] mb-1">Ingrédients</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[14px] font-bold text-[#303044]">Ingrédients</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-[#828294]">Quantités pour</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={ingredientsBaseServings}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val > 0) scaleIngredients(val);
+                      }}
+                      className="w-[56px] h-[32px] px-2 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[8px] text-[13px] text-center text-[#111125] focus:outline-none focus:border-[#c1a0fd] transition-all"
+                    />
+                    <span className="text-[12px] text-[#828294]">personne(s)</span>
+                  </div>
+                </div>
                 <p className="text-[12px] text-[#828294] mb-3">Fournis par le client — pour des raisons de sécurité alimentaire</p>
 
                 {ingredientsList.length > 0 && (
