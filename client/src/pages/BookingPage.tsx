@@ -24,6 +24,8 @@ interface ServiceDetail {
   koursDifficulty?: string | null;
   koursLocation?: string | null;
   equipmentProvided?: boolean;
+  ingredientsList?: { name: string; quantity: string; unit: string }[] | null;
+  ingredientsBaseServings?: number | null;
 }
 
 interface Availability {
@@ -172,6 +174,8 @@ export default function BookingPage() {
             koursDifficulty: s.koursDifficulty || null,
             koursLocation: s.koursLocation || null,
             equipmentProvided: s.equipmentProvided || false,
+            ingredientsList: safeJsonParse<{ name: string; quantity: string; unit: string }[]>(s.ingredientsList, []),
+            ingredientsBaseServings: s.ingredientsBaseServings ?? null,
           });
           setGuests(min);
         } else {
@@ -368,6 +372,22 @@ export default function BookingPage() {
         : null
     : null;
   const canConfirm = !!selectedDate && !!selectedTime && !guestsError && !!service;
+
+  // ─── Ingrédients mis à l'échelle selon le nombre de convives ─────────────
+  const scaledIngredients = useMemo(() => {
+    const list = service?.ingredientsList;
+    const base = service?.ingredientsBaseServings;
+    if (!list?.length) return [];
+    if (!base || base <= 0) return list;
+    const ratio = guests / base;
+    return list.map((ing) => {
+      const qty = parseFloat(ing.quantity);
+      if (isNaN(qty)) return ing;
+      const scaled = qty * ratio;
+      const formatted = Number.isInteger(scaled) ? String(scaled) : parseFloat(scaled.toFixed(2)).toString();
+      return { ...ing, quantity: formatted };
+    });
+  }, [service, guests]);
 
   // ─── Error state ──────────────────────────────────────────────────────────
   if (!isLoading && loadError) {
@@ -884,6 +904,29 @@ export default function BookingPage() {
                 </p>
               )}
             </div>
+
+            {/* ─── Liste d'ingrédients à acheter ─────────────────────── */}
+            {scaledIngredients.length > 0 && (
+              <div className="bg-[#f3ecff] border border-[#c1a0fd]/30 rounded-[16px] p-4">
+                <div className="flex items-start gap-2.5 mb-3">
+                  <span className="text-[20px] leading-none mt-0.5">🛒</span>
+                  <div>
+                    <p className="text-[14px] font-semibold text-[#111125]">Ingrédients à acheter</p>
+                    <p className="text-[12px] text-[#828294] mt-0.5">
+                      Liste pour {guests} {guests > 1 ? guestLabelPlural : guestLabel} — fournis par le client
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {scaledIngredients.map((ing, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 bg-white rounded-[10px] px-3 py-2">
+                      <span className="text-[13px] text-[#303044] font-medium truncate">{ing.name}</span>
+                      <span className="text-[13px] text-[#c1a0fd] font-semibold shrink-0">{ing.quantity} {ing.unit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label htmlFor="notes" className="block text-[14px] font-medium text-[#111125] mb-1.5">
