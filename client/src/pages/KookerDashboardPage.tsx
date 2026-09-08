@@ -29,6 +29,7 @@ interface KookerBooking {
   user: { id: number; firstName: string; lastName: string; email: string };
   service: { id?: number; title: string; type?: string };
   message?: string;
+  ingredientsSource?: string;
 }
 
 const REFUSAL_REASONS = [
@@ -939,6 +940,12 @@ const KookerDashboardPage = () => {
                                   {booking.guests} {(() => { const t = String(booking.service.type || ''); return t.includes('COURS') ? 'participant' : 'convive'; })()}{booking.guests > 1 ? 's' : ''}
                                 </span>
                               </div>
+
+                              {booking.ingredientsSource && booking.ingredientsSource !== 'client' && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#f3ecff] text-[#7c5cbf] text-[12px] font-semibold rounded-[8px]">
+                                  👨‍🍳 Le kooker fournit les ingrédients
+                                </div>
+                              )}
 
                               {booking.message && (
                                 <div className="mt-3 p-3 bg-[#f2f4fc] rounded-[10px]">

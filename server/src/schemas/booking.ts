@@ -6,6 +6,7 @@ export const createBookingSchema = z.object({
   startTime: z.string({ required_error: "L'heure de debut est requise" }),
   guests: z.number().optional().default(1),
   notes: z.string().optional(),
+  ingredientsSource: z.enum(['client', 'kooker']).optional().default('client'),
 });
 
 export const updateBookingStatusSchema = z.object({

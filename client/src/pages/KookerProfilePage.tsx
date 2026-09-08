@@ -41,6 +41,7 @@ interface Service {
   koursDifficulty?: string | null;
   koursLocation?: string | null;
   ingredientsList: IngredientItem[];
+  ingredientsBaseServings?: number | null;
   equipmentKooker: string[];
   equipmentClient: string[];
 }
@@ -145,6 +146,7 @@ function mapApiToProfile(data: any): KookerProfile {
         koursDifficulty: s.koursDifficulty || null,
         koursLocation: s.koursLocation || null,
         ingredientsList: safeJsonParse<IngredientItem[]>(s.ingredientsList, []),
+        ingredientsBaseServings: s.ingredientsBaseServings ?? null,
         equipmentKooker: safeJsonParse<string[]>(s.equipmentKooker, []),
         equipmentClient: safeJsonParse<string[]>(s.constraints, []),
       })),
@@ -282,6 +284,9 @@ export default function KookerProfilePage() {
 
   // Accordion state for services
   const [openServiceId, setOpenServiceId] = useState<number | null>(null);
+  const [ingredientSources, setIngredientSources] = useState<Record<number, 'client' | 'kooker'>>({});
+  const [ingredientsChoiceEnabled, setIngredientsChoiceEnabled] = useState(true);
+  const [ingredientsChoiceDefault, setIngredientsChoiceDefault] = useState<'client' | 'kooker'>('client');
 
   // Image viewer dialog
   const [viewerImages, setViewerImages] = useState<ServiceImage[]>([]);
@@ -323,6 +328,19 @@ export default function KookerProfilePage() {
   const [reviewHovered, setReviewHovered] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  // Load public config
+  useEffect(() => {
+    api.get<{ ingredientsChoiceEnabled?: boolean; ingredientsChoiceDefault?: string }>('/admin/config/public')
+      .then(res => {
+        if (res.success && res.data) {
+          if (typeof res.data.ingredientsChoiceEnabled === 'boolean') setIngredientsChoiceEnabled(res.data.ingredientsChoiceEnabled);
+          if (res.data.ingredientsChoiceDefault === 'kooker' || res.data.ingredientsChoiceDefault === 'client') {
+            setIngredientsChoiceDefault(res.data.ingredientsChoiceDefault);
+          }
+        }
+      }).catch(() => {});
+  }, []);
 
   // Load profile from API
   useEffect(() => {
@@ -860,15 +878,49 @@ export default function KookerProfilePage() {
                             {/* Ingrédients */}
                             {service.ingredientsList.length > 0 && (
                               <div className="mb-4">
-                                <span className="block text-[11px] font-semibold text-[#9ca3af] uppercase mb-1.5">Ingrédients (fournis par le client)</span>
-                                <div className="space-y-1">
-                                  {service.ingredientsList.map((ing, i) => (
-                                    <div key={i} className="flex items-center justify-between gap-3 bg-[#f8f9fc] rounded-[8px] px-3 py-1.5">
-                                      <span className="text-[12px] font-medium text-[#111125]">{ing.name}</span>
-                                      <span className="text-[12px] text-[#c1a0fd] font-semibold shrink-0">{ing.quantity} {ing.unit}</span>
+                                <span className="block text-[11px] font-semibold text-[#9ca3af] uppercase mb-2">Ingrédients</span>
+
+                                {ingredientsChoiceEnabled && (
+                                  <div className="flex gap-1.5 mb-3 p-1 bg-[#f2f4fc] rounded-[10px]">
+                                    {(['client', 'kooker'] as const).map((opt) => (
+                                      <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={() => setIngredientSources(prev => ({ ...prev, [service.id]: opt }))}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 h-[32px] rounded-[8px] text-[12px] font-semibold transition-all cursor-pointer ${
+                                          (ingredientSources[service.id] ?? ingredientsChoiceDefault) === opt
+                                            ? 'bg-white text-[#c1a0fd] shadow-sm'
+                                            : 'text-[#828294] hover:text-[#303044]'
+                                        }`}
+                                      >
+                                        {opt === 'client' ? '🛒 J\'achète les ingrédients' : '👨‍🍳 Le kooker fournit'}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {(ingredientSources[service.id] ?? ingredientsChoiceDefault) === 'client' ? (
+                                  <>
+                                    {service.ingredientsBaseServings && (
+                                      <p className="text-[11px] text-[#828294] mb-1.5">
+                                        Quantités de référence pour {service.ingredientsBaseServings} personne{service.ingredientsBaseServings > 1 ? 's' : ''}
+                                      </p>
+                                    )}
+                                    <div className="space-y-1">
+                                      {service.ingredientsList.map((ing, i) => (
+                                        <div key={i} className="flex items-center justify-between gap-3 bg-[#f8f9fc] rounded-[8px] px-3 py-1.5">
+                                          <span className="text-[12px] font-medium text-[#111125]">{ing.name}</span>
+                                          <span className="text-[12px] text-[#c1a0fd] font-semibold shrink-0">{ing.quantity} {ing.unit}</span>
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
+                                  </>
+                                ) : (
+                                  <div className="bg-[#f3ecff] rounded-[10px] px-3 py-3 text-[12px] text-[#5c5c6f]">
+                                    <p className="font-semibold text-[#303044] mb-1">Le kooker se charge des courses 👨‍🍳</p>
+                                    <p>Cette option sera confirmée lors de votre réservation. Un supplément peut être appliqué selon les ingrédients.</p>
+                                  </div>
+                                )}
                               </div>
                             )}
 

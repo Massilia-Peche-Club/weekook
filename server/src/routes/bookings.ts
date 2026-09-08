@@ -174,7 +174,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.userId;
-      const { serviceId, date, startTime, guests, notes } = req.body;
+      const { serviceId, date, startTime, guests, notes, ingredientsSource } = req.body;
 
       // Validate date is not in the past
       const bookingDate = new Date(date);
@@ -252,6 +252,7 @@ router.post(
           guests,
           totalPriceInCents,
           notes,
+          ingredientsSource: ingredientsSource ?? 'client',
           paymentStatus: 'pending_authorization',
         },
         include: {

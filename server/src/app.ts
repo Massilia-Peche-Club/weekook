@@ -109,6 +109,8 @@ const CONFIG_DEFAULTS: Record<string, unknown> = {
   kookBaseGuests: 6,
   tooltipFruitsDesMer: "produits de la mer à l'exception des poissons",
   tooltipCommission: "La commission Weekook est prélevée sur chaque réservation. Elle couvre les frais de la plateforme, le paiement sécurisé et l'assistance client.",
+  ingredientsChoiceEnabled: true,
+  ingredientsChoiceDefault: "client",
 };
 
 async function seedConfig() {

@@ -124,6 +124,8 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [guests, setGuests] = useState(1);
   const [notes, setNotes] = useState('');
+  const [ingredientsSource, setIngredientsSource] = useState<'client' | 'kooker'>('client');
+  const [ingredientsChoiceEnabled, setIngredientsChoiceEnabled] = useState(true);
 
   // Payment phase state
   const [showPayment, setShowPayment] = useState(false);
@@ -139,6 +141,19 @@ export default function BookingPage() {
   const now = new Date();
   const [calendarYear, setCalendarYear] = useState(now.getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(now.getMonth());
+
+  // ─── Load public config ──────────────────────────────────────────────────
+  useEffect(() => {
+    api.get<{ ingredientsChoiceEnabled?: boolean; ingredientsChoiceDefault?: string }>('/admin/config/public')
+      .then(res => {
+        if (res.success && res.data) {
+          if (typeof res.data.ingredientsChoiceEnabled === 'boolean') setIngredientsChoiceEnabled(res.data.ingredientsChoiceEnabled);
+          if (res.data.ingredientsChoiceDefault === 'kooker' || res.data.ingredientsChoiceDefault === 'client') {
+            setIngredientsSource(res.data.ingredientsChoiceDefault);
+          }
+        }
+      }).catch(() => {});
+  }, []);
 
   // ─── Load service + availability ────────────────────────────────────────────
   useEffect(() => {
@@ -296,6 +311,7 @@ export default function BookingPage() {
         startTime: selectedTime,
         guests,
         notes: notes.trim() || undefined,
+        ingredientsSource: scaledIngredients.length > 0 ? ingredientsSource : undefined,
       });
 
       if (!res.success || !res.data) {
@@ -325,6 +341,7 @@ export default function BookingPage() {
         startTime: selectedTime,
         guests,
         notes: notes.trim() || undefined,
+        ingredientsSource: scaledIngredients.length > 0 ? ingredientsSource : undefined,
       });
 
       if (!res.success || !res.data) {
@@ -905,25 +922,59 @@ export default function BookingPage() {
               )}
             </div>
 
-            {/* ─── Liste d'ingrédients à acheter ─────────────────────── */}
+            {/* ─── Ingrédients : toggle client / kooker ───────────── */}
             {scaledIngredients.length > 0 && (
-              <div className="bg-[#f3ecff] border border-[#c1a0fd]/30 rounded-[16px] p-4">
-                <div className="flex items-start gap-2.5 mb-3">
-                  <span className="text-[20px] leading-none mt-0.5">🛒</span>
-                  <div>
-                    <p className="text-[14px] font-semibold text-[#111125]">Ingrédients à acheter</p>
-                    <p className="text-[12px] text-[#828294] mt-0.5">
-                      Liste pour {guests} {guests > 1 ? guestLabelPlural : guestLabel} — fournis par le client
-                    </p>
+              <div className="rounded-[16px] border border-[#e5e7eb] overflow-hidden">
+                {/* Toggle — visible seulement si activé en admin */}
+                {ingredientsChoiceEnabled && (
+                  <div className="flex gap-1.5 p-1.5 bg-[#f2f4fc]">
+                    {(['client', 'kooker'] as const).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setIngredientsSource(opt)}
+                        className={`flex-1 flex items-center justify-center gap-2 h-[38px] rounded-[10px] text-[13px] font-semibold transition-all cursor-pointer ${
+                          ingredientsSource === opt
+                            ? 'bg-white text-[#c1a0fd] shadow-sm'
+                            : 'text-[#828294] hover:text-[#303044]'
+                        }`}
+                      >
+                        {opt === 'client' ? '🛒 J\'achète les ingrédients' : '👨‍🍳 Le kooker fournit'}
+                      </button>
+                    ))}
                   </div>
-                </div>
-                <div className="space-y-1.5">
-                  {scaledIngredients.map((ing, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 bg-white rounded-[10px] px-3 py-2">
-                      <span className="text-[13px] text-[#303044] font-medium truncate">{ing.name}</span>
-                      <span className="text-[13px] text-[#c1a0fd] font-semibold shrink-0">{ing.quantity} {ing.unit}</span>
+                )}
+
+                {/* Contenu selon le choix */}
+                <div className="p-4">
+                  {ingredientsSource === 'client' ? (
+                    <>
+                      <p className="text-[13px] font-semibold text-[#111125] mb-1">
+                        Liste d'ingrédients à acheter
+                      </p>
+                      <p className="text-[12px] text-[#828294] mb-3">
+                        Pour {guests} {guests > 1 ? guestLabelPlural : guestLabel} — calculé automatiquement
+                      </p>
+                      <div className="space-y-1.5">
+                        {scaledIngredients.map((ing, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-3 bg-[#f8f9fc] rounded-[10px] px-3 py-2">
+                            <span className="text-[13px] text-[#303044] font-medium truncate">{ing.name}</span>
+                            <span className="text-[13px] text-[#c1a0fd] font-semibold shrink-0">{ing.quantity} {ing.unit}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      <span className="text-[24px] leading-none mt-0.5">👨‍🍳</span>
+                      <div>
+                        <p className="text-[13px] font-semibold text-[#111125] mb-1">Le kooker se charge des courses</p>
+                        <p className="text-[12px] text-[#828294]">
+                          Cette préférence sera transmise au kooker avec votre réservation. Un supplément peut être appliqué selon les ingrédients choisis.
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
