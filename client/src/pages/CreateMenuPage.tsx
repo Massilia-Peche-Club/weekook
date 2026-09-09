@@ -69,6 +69,8 @@ export default function CreateMenuPage() {
   // Champs partagés COURS + KOOK — Ingrédients
   const [ingredientsList, setIngredientsList] = useState<{ name: string; quantity: string; unit: string }[]>([]);
   const [ingredientsBaseServings, setIngredientsBaseServings] = useState(1);
+  const [ingredientsPricePerGuest, setIngredientsPricePerGuest] = useState('');
+  const [ingredientsDefaultSource, setIngredientsDefaultSource] = useState<'client' | 'kooker'>('client');
   const [newIngName, setNewIngName] = useState('');
   const [newIngQty, setNewIngQty] = useState('');
   const [newIngUnit, setNewIngUnit] = useState('g');
@@ -227,6 +229,10 @@ export default function CreateMenuPage() {
           specialty: specialties.length > 0 ? specialties : undefined,
           ingredientsList: ingredientsList.length > 0 ? ingredientsList : undefined,
           ingredientsBaseServings: ingredientsList.length > 0 ? ingredientsBaseServings : undefined,
+          ingredientsPricePerGuestInCents: ingredientsPricePerGuest && parseFloat(ingredientsPricePerGuest) > 0
+            ? Math.round(parseFloat(ingredientsPricePerGuest) * 100)
+            : undefined,
+          ingredientsDefaultSource: ingredientsDefaultSource,
           equipmentKooker: equipmentKooker.length > 0 ? equipmentKooker : undefined,
           constraints: equipmentClient.length > 0 ? equipmentClient : undefined,
           koursDifficulty: isKours ? koursDifficulty : undefined,
@@ -716,7 +722,41 @@ export default function CreateMenuPage() {
 
                 {/* Ingrédients (toujours fournis par le client) */}
                 <p className="text-[14px] font-bold text-[#303044] mb-1">Ingrédients</p>
-                <p className="text-[12px] text-[#828294] mb-3">Fournis par le client — pour des raisons de sécurité alimentaire</p>
+                <p className="text-[12px] text-[#828294] mb-3">Les prix affichés sont hors ingrédients. Définissez ci-dessous le coût si vous les fournissez.</p>
+
+                {/* Prix courses + option par défaut */}
+                <div className="flex flex-wrap gap-4 mb-4">
+                  <div className="flex-1 min-w-[180px]">
+                    <p className="text-[13px] font-semibold text-[#303044] mb-1">Prix des courses <span className="font-normal text-[#828294]">(si vous fournissez)</span></p>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={ingredientsPricePerGuest}
+                        onChange={(e) => setIngredientsPricePerGuest(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-[48px] px-4 pr-16 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20 transition-all"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-[#828294] pointer-events-none">€/pers.</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <p className="text-[13px] font-semibold text-[#303044] mb-1">Option affichée par défaut</p>
+                    <div className="flex gap-1.5 p-1 bg-[#f2f4fc] rounded-[10px] h-[48px]">
+                      {(['client', 'kooker'] as const).map(opt => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setIngredientsDefaultSource(opt)}
+                          className={`flex-1 rounded-[8px] text-[12px] font-semibold transition-all cursor-pointer ${ingredientsDefaultSource === opt ? 'bg-white text-[#c1a0fd] shadow-sm' : 'text-[#828294] hover:text-[#303044]'}`}
+                        >
+                          {opt === 'client' ? '🛒 Client achète' : '👨‍🍳 Kooker fournit'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
                 {/* Sélecteur nombre de personnes de référence */}
                 <div className="bg-[#f3ecff] border border-[#c1a0fd]/30 rounded-[12px] px-4 py-3 mb-4 flex items-center justify-between gap-4 flex-wrap">

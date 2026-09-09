@@ -192,6 +192,7 @@ router.post(
           type: true,
           priceInCents: true,
           extraGuestPriceInCents: true,
+          ingredientsPricePerGuestInCents: true,
           durationMinutes: true,
           kookerProfileId: true,
           maxGuests: true,
@@ -239,6 +240,11 @@ router.post(
         totalPriceInCents = service.priceInCents + extraGuests * (service.extraGuestPriceInCents ?? 0);
       } else {
         totalPriceInCents = service.priceInCents * guests;
+      }
+
+      // Surcoût ingrédients si le kooker fournit les courses
+      if (ingredientsSource === 'kooker' && service.ingredientsPricePerGuestInCents) {
+        totalPriceInCents += service.ingredientsPricePerGuestInCents * guests;
       }
 
       // Create booking

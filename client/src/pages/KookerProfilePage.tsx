@@ -42,6 +42,8 @@ interface Service {
   koursLocation?: string | null;
   ingredientsList: IngredientItem[];
   ingredientsBaseServings?: number | null;
+  ingredientsPricePerGuest: number | null;
+  ingredientsDefaultSource: string;
   equipmentKooker: string[];
   equipmentClient: string[];
 }
@@ -147,6 +149,8 @@ function mapApiToProfile(data: any): KookerProfile {
         koursLocation: s.koursLocation || null,
         ingredientsList: safeJsonParse<IngredientItem[]>(s.ingredientsList, []),
         ingredientsBaseServings: s.ingredientsBaseServings ?? null,
+        ingredientsPricePerGuest: s.ingredientsPricePerGuestInCents != null ? s.ingredientsPricePerGuestInCents / 100 : null,
+        ingredientsDefaultSource: s.ingredientsDefaultSource ?? 'client',
         equipmentKooker: safeJsonParse<string[]>(s.equipmentKooker, []),
         equipmentClient: safeJsonParse<string[]>(s.constraints, []),
       })),
@@ -357,6 +361,12 @@ export default function KookerProfilePage() {
           if (mapped.services.length > 0) {
             setOpenServiceId(mapped.services[0].id);
           }
+          // Init ingredient sources depuis les defaults de chaque service
+          const defaults: Record<number, 'client' | 'kooker'> = {};
+          mapped.services.forEach(s => {
+            if (s.ingredientsDefaultSource === 'kooker') defaults[s.id] = 'kooker';
+          });
+          if (Object.keys(defaults).length > 0) setIngredientSources(defaults);
         } else {
           setNotFound(true);
         }
@@ -828,11 +838,23 @@ export default function KookerProfilePage() {
                                         + {service.extraGuestPrice}€/pers. supp.
                                       </span>
                                     )}
+                                    {service.ingredientsList.length > 0 && (
+                                      <span className="block text-[11px] text-[#9ca3af] mt-0.5">
+                                        Prix hors ingrédients{service.ingredientsPricePerGuest && service.ingredientsPricePerGuest > 0 ? ` — courses +${service.ingredientsPricePerGuest.toFixed(2).replace('.', ',')} €/pers.` : ''}
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
-                                  <span className="text-[14px] md:text-[15px] font-semibold text-[#111125]">
-                                    À partir de {service.price}€
-                                  </span>
+                                  <div>
+                                    <span className="text-[14px] md:text-[15px] font-semibold text-[#111125]">
+                                      À partir de {service.price}€
+                                    </span>
+                                    {service.ingredientsList.length > 0 && (
+                                      <span className="block text-[11px] text-[#9ca3af] mt-0.5">
+                                        Prix hors ingrédients{service.ingredientsPricePerGuest && service.ingredientsPricePerGuest > 0 ? ` — courses +${service.ingredientsPricePerGuest.toFixed(2).replace('.', ',')} €/pers.` : ''}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
@@ -918,7 +940,11 @@ export default function KookerProfilePage() {
                                 ) : (
                                   <div className="bg-[#f3ecff] rounded-[10px] px-3 py-3 text-[12px] text-[#5c5c6f]">
                                     <p className="font-semibold text-[#303044] mb-1">Le kooker se charge des courses 👨‍🍳</p>
-                                    <p>Cette option sera confirmée lors de votre réservation. Un supplément sera appliqué selon les ingrédients.</p>
+                                    {service.ingredientsPricePerGuest && service.ingredientsPricePerGuest > 0 ? (
+                                      <p>Supplément de <span className="font-bold text-[#303044]">{service.ingredientsPricePerGuest.toFixed(2).replace('.', ',')} €/personne</span> sera ajouté à votre réservation.</p>
+                                    ) : (
+                                      <p>Cette option sera confirmée lors de votre réservation. Un supplément sera appliqué selon les ingrédients.</p>
+                                    )}
                                   </div>
                                 )}
                               </div>

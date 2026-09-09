@@ -26,6 +26,8 @@ interface ServiceDetail {
   equipmentProvided?: boolean;
   ingredientsList?: { name: string; quantity: string; unit: string }[] | null;
   ingredientsBaseServings?: number | null;
+  ingredientsPricePerGuestInCents?: number | null;
+  ingredientsDefaultSource?: string;
 }
 
 interface Availability {
@@ -191,7 +193,13 @@ export default function BookingPage() {
             equipmentProvided: s.equipmentProvided || false,
             ingredientsList: safeJsonParse<{ name: string; quantity: string; unit: string }[]>(s.ingredientsList, []),
             ingredientsBaseServings: s.ingredientsBaseServings ?? null,
+            ingredientsPricePerGuestInCents: s.ingredientsPricePerGuestInCents ?? null,
+            ingredientsDefaultSource: s.ingredientsDefaultSource ?? 'client',
           });
+          // Le default service-spécifique prend le dessus sur le global
+          if (s.ingredientsDefaultSource === 'kooker' || s.ingredientsDefaultSource === 'client') {
+            setIngredientsSource(s.ingredientsDefaultSource);
+          }
           setGuests(min);
         } else {
           setLoadError(true);
@@ -376,11 +384,16 @@ export default function BookingPage() {
   const isKours = service ? service.type.includes('COURS') : false;
   const guestLabel = isKours ? 'participant' : 'convive';
   const guestLabelPlural = isKours ? 'participants' : 'convives';
-  const totalPriceCents = service
+  const ingredientSurchargeInCents =
+    ingredientsSource === 'kooker' && service?.ingredientsPricePerGuestInCents && service.ingredientsPricePerGuestInCents > 0
+      ? service.ingredientsPricePerGuestInCents * guests
+      : 0;
+
+  const totalPriceCents = (service
     ? isKours
       ? service.priceInCents + Math.max(0, guests - 6) * (service.extraGuestPriceInCents ?? 0)
       : service.priceInCents * guests
-    : 0;
+    : 0) + ingredientSurchargeInCents;
   const guestsError = service
     ? guests < service.minGuests
       ? `Minimum ${service.minGuests} ${guests < service.minGuests ? guestLabelPlural : guestLabel} requis pour ce service.`
@@ -554,6 +567,12 @@ export default function BookingPage() {
                 <span className="text-[14px] text-[#6b7280]">{isKours ? 'Participants' : 'Convives'}</span>
                 <span className="text-[14px] font-semibold text-[#111125]">{guests} personne{guests > 1 ? 's' : ''}</span>
               </div>
+              {ingredientSurchargeInCents > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-[14px] text-[#6b7280]">Courses ({guests} × {formatPrice(service!.ingredientsPricePerGuestInCents!)}&euro;)</span>
+                  <span className="text-[14px] font-semibold text-[#111125]">+{formatPrice(ingredientSurchargeInCents)}&euro;</span>
+                </div>
+              )}
               <div className="border-t border-[#e5e7eb] pt-3 flex justify-between items-center">
                 <span className="text-[16px] font-bold text-[#111125]">Total</span>
                 <span className="text-[22px] font-bold text-[#c1a0fd]">{formatPrice(totalPriceCents)}&euro;</span>
@@ -1066,6 +1085,12 @@ export default function BookingPage() {
                     <span className="text-[14px] font-semibold text-[#111125]">
                       +{formatPrice((service.extraGuestPriceInCents ?? 0) * (guests - 6))}&euro;
                     </span>
+                  </div>
+                )}
+                {ingredientSurchargeInCents > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[14px] text-[#6b7280]">Courses ({guests} × {formatPrice(service!.ingredientsPricePerGuestInCents!)}&euro;)</span>
+                    <span className="text-[14px] font-semibold text-[#111125]">+{formatPrice(ingredientSurchargeInCents)}&euro;</span>
                   </div>
                 )}
                 {notes.trim() && (
