@@ -235,6 +235,7 @@ model Review {
   targetUserId    Int?      @map("target_user_id")
   rating          Int
   comment         String?   @db.Text
+  status          String    @default("pending") @map("status")
   createdAt       DateTime  @default(now()) @map("created_at")
 
   user            User      @relation(fields: [userId], references: [id])

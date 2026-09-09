@@ -36,6 +36,7 @@ interface AdminReview {
   id: number;
   rating: number;
   comment: string | null;
+  status: string;
   createdAt: string;
   user: { id: number; firstName: string; lastName: string; avatar: string | null };
 }
@@ -75,6 +76,15 @@ export default function AdminKookersPage() {
     const res = await api.get<AdminReview[]>(`/admin/reviews/kooker/${kookerId}`);
     if (res.success && res.data) setReviews(res.data);
     setReviewsLoading(false);
+  };
+
+  const handleApproveReview = async (reviewId: number) => {
+    const res = await api.put(`/admin/reviews/${reviewId}/status`, { status: 'approved' });
+    if (res.success) {
+      setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status: 'approved' } : r));
+      toast.success('Avis approuvé et publié');
+      fetchKookers(search, page);
+    }
   };
 
   const handleDeleteReview = async (reviewId: number) => {
@@ -223,25 +233,41 @@ export default function AdminKookersPage() {
                 <p className="text-center text-sm text-gray-400 py-8">Aucun avis pour ce kooker.</p>
               ) : (
                 reviews.map(r => (
-                  <div key={r.id} className="bg-gray-50 rounded-[12px] p-4">
+                  <div key={r.id} className={`rounded-[12px] p-4 border ${r.status === 'pending' ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-transparent'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-[13px] font-semibold text-[#111125]">
                             {r.user.firstName} {r.user.lastName}
                           </span>
                           <span className="text-yellow-400 text-[13px]">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                          {r.status === 'pending' && (
+                            <span className="px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-300">
+                              En attente
+                            </span>
+                          )}
                         </div>
                         {r.comment && <p className="text-[13px] text-gray-600 leading-relaxed">{r.comment}</p>}
                         <p className="text-[11px] text-gray-400 mt-1">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</p>
                       </div>
-                      <button
-                        onClick={() => handleDeleteReview(r.id)}
-                        className="text-red-400 hover:text-red-600 transition-colors flex-shrink-0 mt-0.5"
-                        title="Supprimer cet avis"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                        {r.status === 'pending' && (
+                          <button
+                            onClick={() => handleApproveReview(r.id)}
+                            className="text-green-500 hover:text-green-700 transition-colors"
+                            title="Approuver cet avis"
+                          >
+                            <CheckCircle size={15} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteReview(r.id)}
+                          className="text-red-400 hover:text-red-600 transition-colors"
+                          title={r.status === 'pending' ? 'Rejeter et supprimer' : 'Supprimer cet avis'}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))

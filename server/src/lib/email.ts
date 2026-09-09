@@ -484,6 +484,49 @@ export async function sendCompletionToKooker(
   await sendEmail(kookerEmail, `Paiement en cours — ${serviceName}`, html, 'completion-to-kooker');
 }
 
+// ─── New review pending notification ─────────────────────────────────────────
+
+export async function sendNewReviewPendingToAdmins(
+  reviewerName: string,
+  kookerName: string,
+  rating: number,
+  comment: string | undefined,
+  kookerProfileId: number
+): Promise<void> {
+  const admins = await prisma.user.findMany({
+    where: { role: 'admin' },
+    select: { email: true },
+  });
+
+  if (admins.length === 0) return;
+
+  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+  const commentHtml = comment
+    ? `<div style="background:#f3ecff;border-left:4px solid #c1a0fd;border-radius:8px;padding:12px 16px;margin:12px 0;"><p style="color:#111125;font-size:14px;margin:0;font-style:italic;">"${comment}"</p></div>`
+    : `<p style="color:#9ca3af;font-size:13px;margin:8px 0 0 0;">Aucun commentaire.</p>`;
+
+  const html = emailWrapper(
+    '⭐',
+    'Nouvel avis à modérer',
+    `<p style="color:#6b7280;font-size:14px;margin:0 0 12px 0;">
+      <strong>${reviewerName}</strong> a laissé un avis sur le kooker <strong>${kookerName}</strong>.
+    </p>
+    ${infoBox([
+      { label: 'Note', value: `${stars} (${rating}/5)` },
+      { label: 'Auteur', value: reviewerName },
+      { label: 'Kooker', value: kookerName },
+    ])}
+    ${commentHtml}
+    <p style="color:#6b7280;font-size:13px;margin:8px 0 0 0;">Cet avis est en attente de validation. Approuvez-le ou supprimez-le depuis le panneau admin.</p>`,
+    `${env.APP_URL}/admin/kookers`,
+    'Modérer les avis'
+  );
+
+  for (const admin of admins) {
+    await sendEmail(admin.email, `Nouvel avis à modérer — ${kookerName}`, html, 'review-pending');
+  }
+}
+
 // ─── Kooker auto-validation notification ─────────────────────────────────────
 
 export async function sendKookerAutoValidatedToAdmins(

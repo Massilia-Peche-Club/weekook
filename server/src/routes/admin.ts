@@ -226,6 +226,46 @@ router.get('/reviews/kooker/:id', async (req: Request, res: Response, next: Next
   }
 });
 
+// PUT /reviews/:id/status — Approve or reject a review
+router.put('/reviews/:id/status', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { status } = req.body;
+    if (!['approved', 'rejected'].includes(status)) {
+      res.status(400).json({ success: false, error: 'Statut invalide (approved | rejected)' });
+      return;
+    }
+
+    const review = await prisma.review.findUnique({ where: { id } });
+    if (!review) throw new NotFoundError('Avis introuvable');
+
+    if (status === 'approved') {
+      await prisma.review.update({ where: { id }, data: { status: 'approved' } });
+
+      // Recalculate kooker rating — only approved user_to_kooker reviews
+      const agg = await prisma.review.aggregate({
+        where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      await prisma.kookerProfile.update({
+        where: { id: review.kookerProfileId },
+        data: {
+          rating: Math.round((agg._avg.rating || 0) * 10) / 10,
+          reviewCount: agg._count.rating,
+        },
+      });
+      res.json({ success: true, data: { message: 'Avis approuvé' } });
+    } else {
+      // Rejected → delete
+      await prisma.review.delete({ where: { id } });
+      res.json({ success: true, data: { message: 'Avis rejeté et supprimé' } });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 // DELETE /reviews/:id
 router.delete('/reviews/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -235,9 +275,9 @@ router.delete('/reviews/:id', async (req: Request, res: Response, next: NextFunc
 
     await prisma.review.delete({ where: { id } });
 
-    // Recalculate kooker rating
+    // Recalculate kooker rating — only approved reviews
     const agg = await prisma.review.aggregate({
-      where: { kookerProfileId: review.kookerProfileId },
+      where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
       _avg: { rating: true },
       _count: { rating: true },
     });

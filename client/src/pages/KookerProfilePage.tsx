@@ -556,26 +556,11 @@ export default function KookerProfilePage() {
         rating: reviewRating,
         comment: reviewComment.trim() || undefined,
       });
-      // Optimistically add review to list and re-fetch profile for updated rating
-      if (res.success && res.data) {
-        const newReview = {
-          id: res.data.id,
-          userName: `${user?.firstName} ${user?.lastName}`,
-          userAvatar: user?.avatar || '',
-          rating: reviewRating,
-          comment: reviewComment.trim(),
-          date: new Date().toISOString(),
-        };
-        setProfile(prev => prev ? {
-          ...prev,
-          reviews: [newReview, ...prev.reviews],
-          reviewCount: prev.reviewCount + 1,
-          rating: Math.round(((prev.rating * prev.reviewCount + reviewRating) / (prev.reviewCount + 1)) * 10) / 10,
-        } : prev);
+      if (res.success) {
+        setHasReview(true);
+        setShowReviewModal(false);
+        toast.success('Merci ! Votre avis sera publié après validation par notre équipe.');
       }
-      setHasReview(true);
-      setShowReviewModal(false);
-      toast.success('Avis publié — merci !');
     } catch (err: any) {
       toast.error(err?.error || 'Erreur lors de la publication');
     } finally {

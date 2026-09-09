@@ -4,6 +4,7 @@ import { authenticate, requireKooker } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createReviewSchema, createKookerReviewSchema } from '../schemas/review.js';
 import { AppError } from '../utils/errors.js';
+import { sendNewReviewPendingToAdmins } from '../lib/email.js';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.get('/kooker/:id', async (req: Request, res: Response, next: NextFunction
     }
 
     const reviews = await prisma.review.findMany({
-      where: { kookerProfileId, type: 'user_to_kooker' },
+      where: { kookerProfileId, type: 'user_to_kooker', status: 'approved' },
       include: {
         user: {
           select: {
@@ -109,13 +110,14 @@ router.post(
         }
       }
 
-      // Create the review
+      // Create the review in pending state (requires admin approval)
       const review = await prisma.review.create({
         data: {
           userId,
           kookerProfileId,
           bookingId: bookingId || null,
           type: 'user_to_kooker',
+          status: 'pending',
           rating,
           comment,
         },
@@ -131,24 +133,24 @@ router.post(
         },
       });
 
-      // Recalculate average rating and review count (user-to-kooker only)
-      const aggregation = await prisma.review.aggregate({
-        where: { kookerProfileId, type: 'user_to_kooker' },
-        _avg: { rating: true },
-        _count: { rating: true },
-      });
+      // Note: rating recalculation happens only when admin approves — not on creation
 
-      await prisma.kookerProfile.update({
+      // Notify admins asynchronously (don't await — don't block the response)
+      const kookerWithUser = await prisma.kookerProfile.findUnique({
         where: { id: kookerProfileId },
-        data: {
-          rating: Math.round((aggregation._avg.rating || 0) * 10) / 10,
-          reviewCount: aggregation._count.rating,
-        },
+        include: { user: { select: { firstName: true, lastName: true } } },
       });
+      sendNewReviewPendingToAdmins(
+        `${review.user.firstName} ${review.user.lastName}`,
+        kookerWithUser ? `${kookerWithUser.user.firstName} ${kookerWithUser.user.lastName}` : `Kooker #${kookerProfileId}`,
+        rating,
+        comment,
+        kookerProfileId
+      ).catch(() => {});
 
       res.status(201).json({
         success: true,
-        data: review,
+        data: { ...review, status: 'pending' },
       });
     } catch (error) {
       next(error);
