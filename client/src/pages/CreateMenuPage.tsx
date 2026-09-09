@@ -387,11 +387,17 @@ export default function CreateMenuPage() {
                   />
                 </div>
 
+                {/* Note hors ingrédients */}
+                <div className="flex items-start gap-2 bg-[#fffbe6] border border-[#f59e0b]/30 rounded-[10px] px-3 py-2.5 mb-4">
+                  <span className="text-[15px] shrink-0 mt-0.5">⚠️</span>
+                  <p className="text-[12px] text-[#92400e]">Le tarif saisi est <strong>hors ingrédients</strong>. Le prix des ingrédients est défini séparément dans la section ci-dessous.</p>
+                </div>
+
                 {/* Prix de base + Supplément */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                   <div>
                     <label className={labelClass}>
-                      Prix du cours — 1 à 6 élèves (€) <span className="text-[#c1a0fd]">*</span>
+                      Prix du cours — 1 à 6 élèves (€, hors ingrédients) <span className="text-[#c1a0fd]">*</span>
                     </label>
                     <input
                       type="number"
@@ -566,17 +572,21 @@ export default function CreateMenuPage() {
               </div>
 
               {/* Forfait prix */}
-              <div className="bg-[#f3ecff] rounded-[12px] px-4 py-3 mb-5 flex items-start gap-2">
+              <div className="bg-[#f3ecff] rounded-[12px] px-4 py-3 mb-3 flex items-start gap-2">
                 <span className="text-[16px] shrink-0 mt-0.5">💡</span>
                 <p className="text-[13px] text-[#5c5c6f]">
                   Le KOOK fonctionne avec un <strong>forfait de base pour {kookBaseGuests} personnes</strong>. Si le client vient à moins, il paie quand même le forfait. Vous pouvez ajouter un prix par convive supplémentaire.
                 </p>
               </div>
+              <div className="flex items-start gap-2 bg-[#fffbe6] border border-[#f59e0b]/30 rounded-[10px] px-3 py-2.5 mb-4">
+                <span className="text-[15px] shrink-0 mt-0.5">⚠️</span>
+                <p className="text-[12px] text-[#92400e]">Le tarif saisi est <strong>hors ingrédients</strong>. Le prix des ingrédients est défini séparément dans la section ci-dessous.</p>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 <div>
                   <label className={labelClass}>
-                    Prix forfait {kookBaseGuests} personnes (€) <span className="text-[#c1a0fd]">*</span>
+                    Prix forfait {kookBaseGuests} personnes (€, hors ingrédients) <span className="text-[#c1a0fd]">*</span>
                   </label>
                   <input
                     type="number"
