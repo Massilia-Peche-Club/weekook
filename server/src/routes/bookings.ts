@@ -142,7 +142,7 @@ router.get(
         where: { id },
         include: {
           service: {
-            select: { id: true, title: true, type: true, priceInCents: true, durationMinutes: true, description: true, koursDifficulty: true, koursLocation: true, equipmentProvided: true },
+            select: { id: true, title: true, type: true, priceInCents: true, durationMinutes: true, description: true, koursDifficulty: true, koursLocation: true, equipmentProvided: true, ingredientsList: true, ingredientsBaseServings: true, ingredientsPricePerGuestInCents: true, ingredientsDefaultSource: true },
           },
           kookerProfile: {
             include: { user: { select: { id: true, firstName: true, lastName: true, avatar: true } } },

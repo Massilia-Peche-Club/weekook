@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface IngredientItem { name: string; quantity: string; unit: string; }
+
 interface BookingDetail {
   id: number;
   userId: number;
@@ -19,6 +21,7 @@ interface BookingDetail {
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'awaiting_confirmation';
   paymentStatus?: string;
   notes: string | null;
+  ingredientsSource?: string;
   createdAt: string;
   service: {
     id: number;
@@ -30,6 +33,9 @@ interface BookingDetail {
     koursDifficulty?: string | null;
     koursLocation?: string | null;
     equipmentProvided?: boolean;
+    ingredientsList?: unknown;
+    ingredientsBaseServings?: number | null;
+    ingredientsPricePerGuestInCents?: number | null;
   };
   kookerProfile: {
     id: number;
@@ -550,7 +556,60 @@ export default function BookingDetailPage() {
                   <span className="text-[13px] font-semibold text-[#111125]">📍 {booking.service.koursLocation}</span>
                 </div>
               )}
+              {/* Ingrédients */}
+              {booking.ingredientsSource && (
+                <div className="flex items-center justify-between px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 2l1.5 5.5A8 8 0 0 0 12 20a8 8 0 0 0 7.5-12.5L21 2"/><path d="M12 20v2"/>
+                    </svg>
+                    <span className="text-[13px] text-[#6b7280]">Ingrédients</span>
+                  </div>
+                  <span className="text-[13px] font-semibold text-[#111125]">
+                    {booking.ingredientsSource === 'kooker' ? '👨‍🍳 Fournis par le kooker' : '🛒 Achetés par le client'}
+                  </span>
+                </div>
+              )}
+              {/* Surcoût ingrédients */}
+              {booking.ingredientsSource === 'kooker' && booking.service.ingredientsPricePerGuestInCents && booking.service.ingredientsPricePerGuestInCents > 0 && (
+                <div className="flex items-center justify-between px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                    <span className="text-[13px] text-[#6b7280]">Dont courses ({booking.guests} × {((booking.service.ingredientsPricePerGuestInCents) / 100).toFixed(2).replace('.', ',')} €)</span>
+                  </div>
+                  <span className="text-[13px] font-semibold text-[#111125]">
+                    {((booking.service.ingredientsPricePerGuestInCents * booking.guests) / 100).toFixed(2).replace('.', ',')} €
+                  </span>
+                </div>
+              )}
             </div>
+
+            {/* Liste ingrédients (si client achète) */}
+            {booking.ingredientsSource !== 'kooker' && (() => {
+              const rawList = booking.service.ingredientsList;
+              const list: IngredientItem[] = Array.isArray(rawList) ? rawList as IngredientItem[] : (rawList ? (() => { try { return JSON.parse(String(rawList)); } catch { return []; } })() : []);
+              if (!list.length) return null;
+              return (
+                <div className="mt-4 p-4 bg-[#f2f4fc] rounded-[14px]">
+                  <p className="text-[12px] text-[#6b7280] font-semibold uppercase tracking-wide mb-2">
+                    🛒 Liste de courses
+                    {booking.service.ingredientsBaseServings && (
+                      <span className="font-normal normal-case ml-1">· quantités pour {booking.service.ingredientsBaseServings} pers.</span>
+                    )}
+                  </p>
+                  <div className="space-y-1.5">
+                    {list.map((ing, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3 bg-white rounded-[8px] px-3 py-2">
+                        <span className="text-[13px] font-medium text-[#111125]">{ing.name}</span>
+                        <span className="text-[13px] text-[#c1a0fd] font-semibold shrink-0">{ing.quantity} {ing.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Notes */}
             {booking.notes && !editMode && (
