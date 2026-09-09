@@ -686,13 +686,27 @@ export default function BookingPage() {
                 )}
               </div>
               <div className="text-right">
-                <span className="text-[20px] font-bold text-[#c1a0fd]">
+                <div className="text-[20px] font-bold text-[#c1a0fd]">
                   {formatPrice(service.priceInCents)}&euro;
-                </span>
-                <span className="text-[13px] text-[#6b7280] ml-1">
-                  {isKours ? '/ 1-6 élèves' : '/pers.'}
-                </span>
+                  <span className="text-[13px] font-normal text-[#6b7280] ml-1">
+                    {isKours ? '/ cours' : '/pers.'}
+                  </span>
+                </div>
+                {isKours && service.extraGuestPriceInCents && service.extraGuestPriceInCents > 0 && (
+                  <div className="text-[12px] text-[#6b7280] mt-0.5">+{formatPrice(service.extraGuestPriceInCents)}€/pers. au-delà de 6</div>
+                )}
               </div>
+            </div>
+
+            {/* Explication modèle tarifaire */}
+            <div className="mt-3 flex items-start gap-2 bg-white rounded-[10px] px-3 py-2.5">
+              <span className="text-[14px] shrink-0">💡</span>
+              <p className="text-[12px] text-[#5c5c6f]">
+                {isKours
+                  ? <>Forfait <strong>jusqu'à 6 participants</strong> : {formatPrice(service.priceInCents)}€{service.extraGuestPriceInCents && service.extraGuestPriceInCents > 0 ? <> · Au-delà : <strong>+{formatPrice(service.extraGuestPriceInCents)}€ par participant</strong> supplémentaire</> : ''}. Le tarif s'ajuste automatiquement selon le nombre saisi.</>
+                  : <>Prix de <strong>{formatPrice(service.priceInCents)}€ par convive</strong>. Le total est calculé en multipliant par le nombre de personnes.</>
+                }
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-3 text-[13px] text-[#6b7280]">
@@ -939,6 +953,22 @@ export default function BookingPage() {
                   {guestsError}
                 </p>
               )}
+
+              {/* Aperçu prix en temps réel */}
+              {!guestsError && (
+                <div className="mt-3 bg-[#f2f4fc] rounded-[12px] px-4 py-2.5 flex items-center justify-between">
+                  <span className="text-[13px] text-[#6b7280]">
+                    {isKours
+                      ? guests <= 6
+                        ? `Forfait — ${guests} participant${guests > 1 ? 's' : ''}`
+                        : `Forfait + ${guests - 6} sup.`
+                      : `${guests} × ${formatPrice(service.priceInCents)}€`
+                    }
+                    {ingredientSurchargeInCents > 0 ? ' + courses' : ''}
+                  </span>
+                  <span className="text-[15px] font-bold text-[#c1a0fd]">{formatPrice(totalPriceCents)}€</span>
+                </div>
+              )}
             </div>
 
             {/* ─── Ingrédients : toggle client / kooker ───────────── */}
@@ -1068,12 +1098,12 @@ export default function BookingPage() {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="text-[14px] text-[#6b7280]">
-                    {isKours ? 'Prix du cours (1-6 élèves)' : 'Prix unitaire'}
+                    {isKours ? 'Forfait cours (1–6 participants)' : 'Prix par convive'}
                   </span>
                   <span className="text-[14px] font-semibold text-[#111125]">
                     {isKours
                       ? `${formatPrice(service.priceInCents)}\u20AC`
-                      : `${formatPrice(service.priceInCents)}\u20AC x ${guests}`
+                      : `${formatPrice(service.priceInCents)}\u20AC \u00D7 ${guests}`
                     }
                   </span>
                 </div>
