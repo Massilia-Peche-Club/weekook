@@ -389,10 +389,12 @@ export default function BookingPage() {
       ? service.ingredientsPricePerGuestInCents * guests
       : 0;
 
+  // KOOK = forfait pour minGuests personnes + extra au-delà (même logique que COURS)
+  const kookBaseGuests = service?.minGuests ?? 6;
   const totalPriceCents = (service
     ? isKours
       ? service.priceInCents + Math.max(0, guests - 6) * (service.extraGuestPriceInCents ?? 0)
-      : service.priceInCents * guests
+      : service.priceInCents + Math.max(0, guests - kookBaseGuests) * (service.extraGuestPriceInCents ?? 0)
     : 0) + ingredientSurchargeInCents;
   const guestsError = service
     ? guests < service.minGuests
@@ -689,11 +691,13 @@ export default function BookingPage() {
                 <div className="text-[20px] font-bold text-[#c1a0fd]">
                   {formatPrice(service.priceInCents)}&euro;
                   <span className="text-[13px] font-normal text-[#6b7280] ml-1">
-                    {isKours ? '/ cours' : '/pers.'}
+                    {isKours ? '/ cours' : '/ forfait'}
                   </span>
                 </div>
-                {isKours && service.extraGuestPriceInCents && service.extraGuestPriceInCents > 0 && (
-                  <div className="text-[12px] text-[#6b7280] mt-0.5">+{formatPrice(service.extraGuestPriceInCents)}€/pers. au-delà de 6</div>
+                {service.extraGuestPriceInCents && service.extraGuestPriceInCents > 0 && (
+                  <div className="text-[12px] text-[#6b7280] mt-0.5">
+                    +{formatPrice(service.extraGuestPriceInCents)}€/pers. au-delà de {isKours ? 6 : kookBaseGuests}
+                  </div>
                 )}
               </div>
             </div>
@@ -704,7 +708,7 @@ export default function BookingPage() {
               <p className="text-[12px] text-[#5c5c6f]">
                 {isKours
                   ? <>Forfait <strong>jusqu'à 6 participants</strong> : {formatPrice(service.priceInCents)}€{service.extraGuestPriceInCents && service.extraGuestPriceInCents > 0 ? <> · Au-delà : <strong>+{formatPrice(service.extraGuestPriceInCents)}€ par participant</strong> supplémentaire</> : ''}. Le tarif s'ajuste automatiquement selon le nombre saisi.</>
-                  : <>Prix de <strong>{formatPrice(service.priceInCents)}€ par convive</strong>. Le total est calculé en multipliant par le nombre de personnes.</>
+                  : <>Forfait pour <strong>{kookBaseGuests} convives</strong> : {formatPrice(service.priceInCents)}€{service.extraGuestPriceInCents && service.extraGuestPriceInCents > 0 ? <> · Au-delà : <strong>+{formatPrice(service.extraGuestPriceInCents)}€ par convive</strong> supplémentaire</> : ''}. Le tarif s'ajuste automatiquement selon le nombre saisi.</>
                 }
               </p>
             </div>
@@ -962,7 +966,9 @@ export default function BookingPage() {
                       ? guests <= 6
                         ? `Forfait — ${guests} participant${guests > 1 ? 's' : ''}`
                         : `Forfait + ${guests - 6} sup.`
-                      : `${guests} × ${formatPrice(service.priceInCents)}€`
+                      : guests <= kookBaseGuests
+                        ? `Forfait — ${guests} convive${guests > 1 ? 's' : ''}`
+                        : `Forfait + ${guests - kookBaseGuests} sup.`
                     }
                     {ingredientSurchargeInCents > 0 ? ' + courses' : ''}
                   </span>
@@ -1098,13 +1104,10 @@ export default function BookingPage() {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="text-[14px] text-[#6b7280]">
-                    {isKours ? 'Forfait cours (1–6 participants)' : 'Prix par convive'}
+                    {isKours ? 'Forfait cours (1–6 participants)' : `Forfait kook (${kookBaseGuests} convives)`}
                   </span>
                   <span className="text-[14px] font-semibold text-[#111125]">
-                    {isKours
-                      ? `${formatPrice(service.priceInCents)}\u20AC`
-                      : `${formatPrice(service.priceInCents)}\u20AC \u00D7 ${guests}`
-                    }
+                    {formatPrice(service.priceInCents)}&euro;
                   </span>
                 </div>
                 {isKours && guests > 6 && (
@@ -1114,6 +1117,16 @@ export default function BookingPage() {
                     </span>
                     <span className="text-[14px] font-semibold text-[#111125]">
                       +{formatPrice((service.extraGuestPriceInCents ?? 0) * (guests - 6))}&euro;
+                    </span>
+                  </div>
+                )}
+                {!isKours && guests > kookBaseGuests && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[14px] text-[#6b7280]">
+                      Supplément ({guests - kookBaseGuests} convive{guests - kookBaseGuests > 1 ? 's' : ''} en plus)
+                    </span>
+                    <span className="text-[14px] font-semibold text-[#111125]">
+                      +{formatPrice((service.extraGuestPriceInCents ?? 0) * (guests - kookBaseGuests))}&euro;
                     </span>
                   </div>
                 )}
