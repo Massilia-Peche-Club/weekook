@@ -970,7 +970,7 @@ export default function BookingPage() {
                       <div>
                         <p className="text-[13px] font-semibold text-[#111125] mb-1">Le kooker se charge des courses</p>
                         <p className="text-[12px] text-[#828294]">
-                          Cette préférence sera transmise au kooker avec votre réservation. Un supplément peut être appliqué selon les ingrédients choisis.
+                          Cette préférence sera transmise au kooker avec votre réservation. Un supplément sera appliqué selon les ingrédients choisis.
                         </p>
                       </div>
                     </div>

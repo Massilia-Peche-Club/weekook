@@ -918,7 +918,7 @@ export default function KookerProfilePage() {
                                 ) : (
                                   <div className="bg-[#f3ecff] rounded-[10px] px-3 py-3 text-[12px] text-[#5c5c6f]">
                                     <p className="font-semibold text-[#303044] mb-1">Le kooker se charge des courses 👨‍🍳</p>
-                                    <p>Cette option sera confirmée lors de votre réservation. Un supplément peut être appliqué selon les ingrédients.</p>
+                                    <p>Cette option sera confirmée lors de votre réservation. Un supplément sera appliqué selon les ingrédients.</p>
                                   </div>
                                 )}
                               </div>

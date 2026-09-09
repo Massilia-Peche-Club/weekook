@@ -92,6 +92,7 @@ router.post(
         ingredientsIncluded,
         equipmentProvided,
         ingredientsList,
+        ingredientsBaseServings,
         equipmentKooker,
         extraGuestPriceInCents,
         menuItems,
@@ -114,6 +115,7 @@ router.post(
           ingredientsIncluded: ingredientsIncluded ?? false,
           equipmentProvided: equipmentProvided ?? false,
           ingredientsList: ingredientsList || null,
+          ingredientsBaseServings: ingredientsBaseServings ?? null,
           equipmentKooker: equipmentKooker || null,
           extraGuestPriceInCents: extraGuestPriceInCents ?? null,
           menuItems: menuItems
@@ -249,6 +251,7 @@ router.put(
         ingredientsIncluded,
         equipmentProvided,
         ingredientsList,
+        ingredientsBaseServings,
         equipmentKooker,
         extraGuestPriceInCents,
         menuItems,
@@ -270,6 +273,7 @@ router.put(
       if (ingredientsIncluded !== undefined) data.ingredientsIncluded = ingredientsIncluded;
       if (equipmentProvided !== undefined) data.equipmentProvided = equipmentProvided;
       if (ingredientsList !== undefined) data.ingredientsList = ingredientsList;
+      if (ingredientsBaseServings !== undefined) data.ingredientsBaseServings = ingredientsBaseServings;
       if (equipmentKooker !== undefined) data.equipmentKooker = equipmentKooker;
       if (extraGuestPriceInCents !== undefined) data.extraGuestPriceInCents = extraGuestPriceInCents;
 
