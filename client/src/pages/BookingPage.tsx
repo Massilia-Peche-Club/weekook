@@ -127,7 +127,6 @@ export default function BookingPage() {
   const [guests, setGuests] = useState(1);
   const [notes, setNotes] = useState('');
   const [ingredientsSource, setIngredientsSource] = useState<'client' | 'kooker'>('client');
-  const [ingredientsChoiceEnabled, setIngredientsChoiceEnabled] = useState(true);
 
   // Payment phase state
   const [showPayment, setShowPayment] = useState(false);
@@ -144,18 +143,6 @@ export default function BookingPage() {
   const [calendarYear, setCalendarYear] = useState(now.getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(now.getMonth());
 
-  // ─── Load public config ──────────────────────────────────────────────────
-  useEffect(() => {
-    api.get<{ ingredientsChoiceEnabled?: boolean; ingredientsChoiceDefault?: string }>('/admin/config/public')
-      .then(res => {
-        if (res.success && res.data) {
-          if (typeof res.data.ingredientsChoiceEnabled === 'boolean') setIngredientsChoiceEnabled(res.data.ingredientsChoiceEnabled);
-          if (res.data.ingredientsChoiceDefault === 'kooker' || res.data.ingredientsChoiceDefault === 'client') {
-            setIngredientsSource(res.data.ingredientsChoiceDefault);
-          }
-        }
-      }).catch(() => {});
-  }, []);
 
   // ─── Load service + availability ────────────────────────────────────────────
   useEffect(() => {
@@ -196,10 +183,6 @@ export default function BookingPage() {
             ingredientsPricePerGuestInCents: s.ingredientsPricePerGuestInCents ?? null,
             ingredientsDefaultSource: s.ingredientsDefaultSource ?? 'client',
           });
-          // Le default service-spécifique prend le dessus sur le global
-          if (s.ingredientsDefaultSource === 'kooker' || s.ingredientsDefaultSource === 'client') {
-            setIngredientsSource(s.ingredientsDefaultSource);
-          }
           setGuests(min);
         } else {
           setLoadError(true);
@@ -980,8 +963,8 @@ export default function BookingPage() {
             {/* ─── Ingrédients : toggle client / kooker ───────────── */}
             {scaledIngredients.length > 0 && (
               <div className="rounded-[16px] border border-[#e5e7eb] overflow-hidden">
-                {/* Toggle — visible seulement si activé en admin */}
-                {ingredientsChoiceEnabled && (
+                {/* Toggle visible uniquement si le kooker propose l'option (prix > 0) */}
+                {service.ingredientsPricePerGuestInCents && service.ingredientsPricePerGuestInCents > 0 && (
                   <div className="flex gap-1.5 p-1.5 bg-[#f2f4fc]">
                     {(['client', 'kooker'] as const).map((opt) => (
                       <button

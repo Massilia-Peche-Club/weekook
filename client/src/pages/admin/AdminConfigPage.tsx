@@ -13,8 +13,6 @@ interface ConfigData {
   kookBaseGuests?: number;
   tooltipFruitsDesMer?: string;
   tooltipCommission?: string;
-  ingredientsChoiceEnabled?: boolean;
-  ingredientsChoiceDefault?: string;
   [key: string]: string[] | number | string | boolean | undefined;
 }
 
@@ -262,8 +260,6 @@ export default function AdminConfigPage() {
   const [kookBaseGuests, setKookBaseGuests] = useState<number>(6);
   const [tooltipFruitsDesMer, setTooltipFruitsDesMer] = useState<string>("produits de la mer à l'exception des poissons");
   const [tooltipCommission, setTooltipCommission] = useState<string>("La commission Weekook est prélevée sur chaque réservation. Elle couvre les frais de la plateforme, le paiement sécurisé et l'assistance client.");
-  const [ingredientsChoiceEnabled, setIngredientsChoiceEnabled] = useState<boolean>(true);
-  const [ingredientsChoiceDefault, setIngredientsChoiceDefault] = useState<string>('client');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { document.title = 'Admin — Configuration | Weekook'; }, []);
@@ -277,8 +273,6 @@ export default function AdminConfigPage() {
         if (typeof res.data.kookBaseGuests === 'number') setKookBaseGuests(res.data.kookBaseGuests);
         if (typeof res.data.tooltipFruitsDesMer === 'string') setTooltipFruitsDesMer(res.data.tooltipFruitsDesMer);
         if (typeof res.data.tooltipCommission === 'string') setTooltipCommission(res.data.tooltipCommission);
-        if (typeof res.data.ingredientsChoiceEnabled === 'boolean') setIngredientsChoiceEnabled(res.data.ingredientsChoiceEnabled);
-        if (typeof res.data.ingredientsChoiceDefault === 'string') setIngredientsChoiceDefault(res.data.ingredientsChoiceDefault);
       }
     }).finally(() => setLoading(false));
   }, []);
@@ -302,16 +296,9 @@ export default function AdminConfigPage() {
     if (res.success) {
       if (key === 'tooltipFruitsDesMer') setTooltipFruitsDesMer(val);
       if (key === 'tooltipCommission') setTooltipCommission(val);
-      if (key === 'ingredientsChoiceDefault') setIngredientsChoiceDefault(val);
     }
   };
 
-  const handleBooleanSave = async (key: string, val: boolean) => {
-    const res = await api.put(`/admin/config/${key}`, { value: val });
-    if (res.success) {
-      if (key === 'ingredientsChoiceEnabled') setIngredientsChoiceEnabled(val);
-    }
-  };
 
   const configKeys = ['specialties', 'cities', 'allergens', 'serviceTypes', 'units'];
 
@@ -348,46 +335,6 @@ export default function AdminConfigPage() {
             min={1}
             onSave={handleNumberSave}
           />
-          {/* ── Gestion des ingrédients ── */}
-          <div className="bg-white rounded-[20px] p-6">
-            <h2 className="font-semibold text-[#111125] mb-1">Choix des ingrédients — toggle client / kooker</h2>
-            <p className="text-sm text-gray-500 mb-5">Permet au client de choisir si c'est lui ou le kooker qui achète les ingrédients.</p>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
-              <div>
-                <p className="text-[14px] font-medium text-[#111125]">Afficher le toggle sur les pages publiques</p>
-                <p className="text-[12px] text-gray-400 mt-0.5">Si désactivé, seule l'option "client achète" est disponible</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleBooleanSave('ingredientsChoiceEnabled', !ingredientsChoiceEnabled)}
-                className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${ingredientsChoiceEnabled ? 'bg-[#c1a0fd]' : 'bg-gray-200'}`}
-              >
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${ingredientsChoiceEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-            <div className="flex items-center justify-between pt-3">
-              <div>
-                <p className="text-[14px] font-medium text-[#111125]">Choix par défaut</p>
-                <p className="text-[12px] text-gray-400 mt-0.5">Option pré-sélectionnée à l'arrivée sur la page</p>
-              </div>
-              <div className="flex gap-2">
-                {(['client', 'kooker'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => handleTextSave('ingredientsChoiceDefault', v)}
-                    className={`px-4 py-1.5 rounded-[10px] text-[13px] font-semibold border transition-all cursor-pointer ${
-                      ingredientsChoiceDefault === v
-                        ? 'bg-[#c1a0fd] border-[#c1a0fd] text-white'
-                        : 'bg-white border-gray-200 text-[#303044] hover:border-[#c1a0fd]'
-                    }`}
-                  >
-                    {v === 'client' ? '🛒 Client achète' : '👨‍🍳 Kooker fournit'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
 
           <TextEditor
             label="Tooltip — Allergène Fruits de mer"

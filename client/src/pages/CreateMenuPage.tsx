@@ -70,7 +70,6 @@ export default function CreateMenuPage() {
   const [ingredientsList, setIngredientsList] = useState<{ name: string; quantity: string; unit: string }[]>([]);
   const [ingredientsBaseServings, setIngredientsBaseServings] = useState(1);
   const [ingredientsPricePerGuest, setIngredientsPricePerGuest] = useState('');
-  const [ingredientsDefaultSource, setIngredientsDefaultSource] = useState<'client' | 'kooker'>('client');
   const [newIngName, setNewIngName] = useState('');
   const [newIngQty, setNewIngQty] = useState('');
   const [newIngUnit, setNewIngUnit] = useState('g');
@@ -232,7 +231,6 @@ export default function CreateMenuPage() {
           ingredientsPricePerGuestInCents: ingredientsPricePerGuest && parseFloat(ingredientsPricePerGuest) > 0
             ? Math.round(parseFloat(ingredientsPricePerGuest) * 100)
             : undefined,
-          ingredientsDefaultSource: ingredientsDefaultSource,
           equipmentKooker: equipmentKooker.length > 0 ? equipmentKooker : undefined,
           constraints: equipmentClient.length > 0 ? equipmentClient : undefined,
           koursDifficulty: isKours ? koursDifficulty : undefined,
@@ -749,21 +747,6 @@ export default function CreateMenuPage() {
                         className="w-full h-[48px] px-4 pr-16 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20 transition-all"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-[#828294] pointer-events-none">€/pers.</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-[200px]">
-                    <p className="text-[13px] font-semibold text-[#303044] mb-1">Option affichée par défaut</p>
-                    <div className="flex gap-1.5 p-1 bg-[#f2f4fc] rounded-[10px] h-[48px]">
-                      {(['client', 'kooker'] as const).map(opt => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => setIngredientsDefaultSource(opt)}
-                          className={`flex-1 rounded-[8px] text-[12px] font-semibold transition-all cursor-pointer ${ingredientsDefaultSource === opt ? 'bg-white text-[#c1a0fd] shadow-sm' : 'text-[#828294] hover:text-[#303044]'}`}
-                        >
-                          {opt === 'client' ? '🛒 Client achète' : '👨‍🍳 Kooker fournit'}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 </div>

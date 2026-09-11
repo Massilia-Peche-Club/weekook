@@ -43,7 +43,6 @@ interface Service {
   ingredientsList: IngredientItem[];
   ingredientsBaseServings?: number | null;
   ingredientsPricePerGuest: number | null;
-  ingredientsDefaultSource: string;
   equipmentKooker: string[];
   equipmentClient: string[];
 }
@@ -150,7 +149,6 @@ function mapApiToProfile(data: any): KookerProfile {
         ingredientsList: safeJsonParse<IngredientItem[]>(s.ingredientsList, []),
         ingredientsBaseServings: s.ingredientsBaseServings ?? null,
         ingredientsPricePerGuest: s.ingredientsPricePerGuestInCents != null ? s.ingredientsPricePerGuestInCents / 100 : null,
-        ingredientsDefaultSource: s.ingredientsDefaultSource ?? 'client',
         equipmentKooker: safeJsonParse<string[]>(s.equipmentKooker, []),
         equipmentClient: safeJsonParse<string[]>(s.constraints, []),
       })),
@@ -289,8 +287,6 @@ export default function KookerProfilePage() {
   // Accordion state for services
   const [openServiceId, setOpenServiceId] = useState<number | null>(null);
   const [ingredientSources, setIngredientSources] = useState<Record<number, 'client' | 'kooker'>>({});
-  const [ingredientsChoiceEnabled, setIngredientsChoiceEnabled] = useState(true);
-  const [ingredientsChoiceDefault, setIngredientsChoiceDefault] = useState<'client' | 'kooker'>('client');
 
   // Image viewer dialog
   const [viewerImages, setViewerImages] = useState<ServiceImage[]>([]);
@@ -333,18 +329,6 @@ export default function KookerProfilePage() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
-  // Load public config
-  useEffect(() => {
-    api.get<{ ingredientsChoiceEnabled?: boolean; ingredientsChoiceDefault?: string }>('/admin/config/public')
-      .then(res => {
-        if (res.success && res.data) {
-          if (typeof res.data.ingredientsChoiceEnabled === 'boolean') setIngredientsChoiceEnabled(res.data.ingredientsChoiceEnabled);
-          if (res.data.ingredientsChoiceDefault === 'kooker' || res.data.ingredientsChoiceDefault === 'client') {
-            setIngredientsChoiceDefault(res.data.ingredientsChoiceDefault);
-          }
-        }
-      }).catch(() => {});
-  }, []);
 
   // Load profile from API
   useEffect(() => {
@@ -361,12 +345,6 @@ export default function KookerProfilePage() {
           if (mapped.services.length > 0) {
             setOpenServiceId(mapped.services[0].id);
           }
-          // Init ingredient sources depuis les defaults de chaque service
-          const defaults: Record<number, 'client' | 'kooker'> = {};
-          mapped.services.forEach(s => {
-            if (s.ingredientsDefaultSource === 'kooker') defaults[s.id] = 'kooker';
-          });
-          if (Object.keys(defaults).length > 0) setIngredientSources(defaults);
         } else {
           setNotFound(true);
         }
@@ -887,7 +865,7 @@ export default function KookerProfilePage() {
                               <div className="mb-4">
                                 <span className="block text-[11px] font-semibold text-[#9ca3af] uppercase mb-2">Ingrédients</span>
 
-                                {ingredientsChoiceEnabled && (
+                                {service.ingredientsPricePerGuest && service.ingredientsPricePerGuest > 0 && (
                                   <div className="flex gap-1.5 mb-3 p-1 bg-[#f2f4fc] rounded-[10px]">
                                     {(['client', 'kooker'] as const).map((opt) => (
                                       <button
@@ -895,7 +873,7 @@ export default function KookerProfilePage() {
                                         type="button"
                                         onClick={() => setIngredientSources(prev => ({ ...prev, [service.id]: opt }))}
                                         className={`flex-1 flex items-center justify-center gap-1.5 h-[32px] rounded-[8px] text-[12px] font-semibold transition-all cursor-pointer ${
-                                          (ingredientSources[service.id] ?? ingredientsChoiceDefault) === opt
+                                          (ingredientSources[service.id] ?? 'client') === opt
                                             ? 'bg-white text-[#c1a0fd] shadow-sm'
                                             : 'text-[#828294] hover:text-[#303044]'
                                         }`}
@@ -906,7 +884,7 @@ export default function KookerProfilePage() {
                                   </div>
                                 )}
 
-                                {(ingredientSources[service.id] ?? ingredientsChoiceDefault) === 'client' ? (
+                                {(ingredientSources[service.id] ?? 'client') === 'client' ? (
                                   <>
                                     {service.ingredientsBaseServings && (
                                       <p className="text-[11px] text-[#828294] mb-1.5">
