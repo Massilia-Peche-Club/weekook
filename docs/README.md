@@ -8,6 +8,10 @@ Documentation technique du projet Weekook — plateforme de cuisine à domicile.
 |----------|-------------|
 | [SPECS_FONCTIONNELLES.md](./SPECS_FONCTIONNELLES.md) | Spécifications fonctionnelles — parcours utilisateur, règles métier, 60+ scénarios de test |
 | [SPECS.md](./SPECS.md) | Spécifications techniques — schéma DB, endpoints API, validations Zod, logique serveur |
+| [DOCUMENTATION_WEEKOOK.md](./DOCUMENTATION_WEEKOOK.md) | Fonctionnalités & règles de gestion — vue d'ensemble du produit |
+| [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) | Guide utilisateur du backoffice administrateur |
+| [GUIDE_DEPLOIEMENT.md](./GUIDE_DEPLOIEMENT.md) | Guide de déploiement en production |
+| [GUIDE_PAIEMENTS_STRIPE.md](./GUIDE_PAIEMENTS_STRIPE.md) | Guide d'utilisation des paiements Stripe Connect |
 
 ## Architecture résumée
 
