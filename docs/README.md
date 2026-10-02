@@ -6,7 +6,8 @@ Documentation technique du projet Weekook — plateforme de cuisine à domicile.
 
 | Document | Description |
 |----------|-------------|
-| [SPECS.md](./SPECS.md) | Spécifications techniques complètes — schéma DB, API, validations, logique métier, frontend |
+| [SPECS_FONCTIONNELLES.md](./SPECS_FONCTIONNELLES.md) | Spécifications fonctionnelles — parcours utilisateur, règles métier, 60+ scénarios de test |
+| [SPECS.md](./SPECS.md) | Spécifications techniques — schéma DB, endpoints API, validations Zod, logique serveur |
 
 ## Architecture résumée
 
