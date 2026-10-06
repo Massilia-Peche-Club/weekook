@@ -374,7 +374,7 @@ export default function ServiceDetailPage() {
                 </p>
               )}
               <Link
-                to={`/reservation?serviceId=${service.id}`}
+                to={`/reservation?service=${service.id}&kooker=${kooker.id}`}
                 className="block w-full text-center py-3.5 bg-[#c1a0fd] hover:bg-[#b090ed] text-white font-semibold text-[15px] rounded-[12px] transition-colors mt-4"
               >
                 Réserver cette prestation
