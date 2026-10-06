@@ -269,7 +269,34 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 
 ## 6. Recherche & Découverte
 
-### 6.1 Recherche de kookers (GET /api/v1/kookers)
+### 6.1 Recherche de prestations (GET /api/v1/services/search) ⭐ nouveau
+
+L'interface de recherche est centrée sur les **prestations** (et non plus les kookers). Un kooker avec 3 offres = 3 cartes distinctes dans les résultats.
+
+**Filtres disponibles :**
+
+| Paramètre | Type | Comportement |
+|-----------|------|-------------|
+| `q` | string | Recherche texte sur : titre service, description, nom kooker, spécialités |
+| `type` | string | Contenu du champ JSON `type` du service (KOOK / COURS) |
+| `specialty` | string | Spécialités du `kookerProfile` |
+| `city` | string | `kookerProfile.city` (case-insensitive) |
+| `minPrice` / `maxPrice` | number | Sur `priceInCents` du service (euros → centimes) |
+| `difficulty` | string | `koursDifficulty` (COURS uniquement) |
+| `featured` | boolean | `kookerProfile.featured = true` |
+| `page` | number | Défaut 1 |
+| `limit` | number | Défaut 12 |
+
+**Logique de recherche :**
+
+1. Seuls les services `active: true` appartenant à un kooker `active: true` sont retournés
+2. Tri : `kookerProfile.featured DESC` puis `kookerProfile.rating DESC`
+3. Pagination SQL native
+4. Include : images (isCardImage prioritaire), kookerProfile avec user (avatar, nom)
+
+### 6.1b Recherche de kookers (GET /api/v1/kookers) — usage interne
+
+Endpoint conservé pour les recherches internes (dashboard admin, etc.).
 
 **Filtres disponibles :**
 
@@ -822,13 +849,14 @@ APRÈS COMPLETION :
 
 | Page | Route | Description |
 |------|-------|-------------|
-| HomePage | `/` | Hero, barre de recherche, kookers vedettes (API), témoignages (API), FAQ accordion |
-| SearchPage | `/recherche` | Recherche kookers avec filtres (type, spécialité, ville, prix, difficulté) |
+| HomePage | `/` | Hero, barre de recherche, **prestations vedettes** (ServiceCard via `GET /services/search?featured=true`), témoignages, FAQ |
+| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, ville, prix, difficulté) — `GET /services/search` |
+| ServiceDetailPage | `/prestation/:id` | Détail prestation : galerie, description, prix, ingrédients, encart kooker, CTA réserver |
 | KookerProfilePage | `/kooker/:id` | Profil complet, services en accordéon, galerie d'images, avis, planning, réservation |
 | LoginPage | `/connexion` | Split-screen login/register |
-| BookingPage | `/reserver/:serviceId` | Formulaire de réservation (date, heure, convives, notes) |
+| BookingPage | `/reservation` | Formulaire de réservation — params `?service={id}&kooker={kookerProfileId}` |
 | BookingDetailPage | `/reservation/:id` | Détail réservation, actions contextuelles, modales d'avis/témoignage |
-| PricingPage | `/tarifs` | Tarification plateforme |
+| PricingPage | `/tarification` | Tarification plateforme |
 | AboutPage | `/a-propos` | À propos de Weekook |
 | BenefitsPage | `/avantages` | Avantages pour les kookers/users |
 | TrustPage | `/confiance` | Confiance et garantie |
@@ -883,6 +911,25 @@ APRÈS COMPLETION :
 - **Node** : v22.19.0
 - **PM2** : Gestion des processus (`weekook-dev`, `weekook-val`, `weekook-prod`)
 - **Nginx** : Reverse proxy + SSL Let's Encrypt
+
+### Démarrage serveur (`app.ts`)
+
+Le serveur établit la connexion Prisma **avant** d'appeler `app.listen()` pour éliminer la latence de 10 s au premier appel.
+
+```
+prisma.$connect()          ← connexion pool établie (~5-10s, une seule fois)
+  ↓
+seedConfig()               ← upsert des valeurs de config par défaut
+  ↓
+app.listen(PORT)           ← serveur accepte les connexions (Prisma déjà prêt)
+  ↓
+process.send('ready')      ← signal PM2 → reload gracieux
+  ↓
+setInterval(30s)           ← keepalive SELECT 1 toutes les 30s
+```
+
+- Pool de connexions : `connection_limit=10`, `pool_timeout=5` (dans l'URL Prisma)
+- Si `prisma.$connect()` échoue → `process.exit(1)` (PM2 redémarre le worker)
 
 ### CI/CD (GitHub Actions)
 

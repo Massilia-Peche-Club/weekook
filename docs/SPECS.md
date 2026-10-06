@@ -556,6 +556,24 @@ model PageViewLog {
 
 ### SERVICES ROUTES (`/api/v1/services`)
 
+#### GET `/search` (Search services — public)
+- **Params**: `q`, `type`, `specialty`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `page` (défaut 1), `limit` (défaut 12)
+- **Filtres**:
+  - Uniquement services `active: true` appartenant à un kooker `active: true`
+  - `q` : recherche texte sur titre, description, nom kooker, spécialités
+  - `type` : contenu du champ JSON `type` du service
+  - `specialty` : spécialités du kookerProfile
+  - `city` : sur `kookerProfile.city` (case-insensitive)
+  - `minPrice` / `maxPrice` : sur `priceInCents` (euros → centimes)
+  - `difficulty` : sur `koursDifficulty` (COURS uniquement)
+  - `featured` : `kookerProfile.featured = true`
+- **Include**: images (isCardImage prioritaire), kookerProfile (id, city, rating, reviewCount, featured, verified, user)
+- **Tri**: `kookerProfile.featured DESC` puis `kookerProfile.rating DESC`
+- **Réponse**: `{ success, data: { services[], pagination: { page, limit, total, totalPages } } }`
+- **Status Codes**: 200
+
+> ⚠️ Cette route est déclarée **avant** `/:id` dans le fichier pour éviter que "search" soit capturé comme un ID.
+
 #### GET `/kooker/:id` (Get all services for kooker)
 - **Returns**: Array of services with images and menuItems
 - **Ordering**: createdAt DESC
@@ -1408,9 +1426,10 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 
 | Path | Component | Protection | Purpose |
 |------|-----------|-----------|---------|
-| `/` | HomePage | Public | Hero, featured kookers, testimonials, FAQ |
-| `/recherche` | SearchPage | Public | Search & filter kookers |
+| `/` | HomePage | Public | Hero, featured services (ServiceCard), testimonials, FAQ |
+| `/recherche` | SearchPage | Public | Search & filter services (ServiceCard) — appel `GET /services/search` |
 | `/kooker/:id` | KookerProfilePage | Public | Public kooker profile + services + reviews |
+| `/prestation/:id` | ServiceDetailPage | Public | Détail d'une prestation : galerie, description, prix, encart kooker, CTA réserver |
 | `/tarification` | PricingPage | Public | Pricing info |
 | `/a-propos` | AboutPage | Public | About page |
 | `/avantages` | BenefitsPage | Public | Benefits page |

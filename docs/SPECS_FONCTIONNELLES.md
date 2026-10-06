@@ -134,11 +134,12 @@
 - Zone de saisie avec animation typewriter (suggestions : "Couscous", "cuisine vietnamienne", "Marseille Paella géante")
 - Soumission → redirection vers `/recherche?q={texte encodé}`
 
-### 3.2 Kookers vedettes
+### 3.2 Prestations vedettes
 
-- Affiche 4 kookers avec `featured=true` (via `GET /kookers?featured=true&limit=4`)
-- Données affichées par carte : avatar, nom, ville, spécialités, prix le plus bas
+- Affiche 4 prestations avec `featured=true` (via `GET /services/search?featured=true&limit=4`)
+- Données affichées par carte (`ServiceCard`) : image du service, badge type (COURS/KOOK), titre, avatar + nom + ville du kooker, note, prix, durée
 - Skeleton loader pendant le chargement
+- Clic sur une carte → `/prestation/:id`
 
 ### 3.3 Carrousel de témoignages
 
@@ -162,18 +163,22 @@
 
 ---
 
-## 4. Recherche de kookers
+## 4. Recherche de prestations
+
+**Endpoint** : `GET /api/v1/services/search`
+
+Un kooker avec 3 offres = 3 cartes distinctes dans les résultats. L'utilisateur cherche une prestation, pas un kooker.
 
 ### 4.1 Filtres disponibles
 
 | Filtre | Type | Comportement |
 |--------|------|-------------|
-| Recherche texte | Saisie libre | Recherche sur nom, bio, ville, spécialités, titres d'offres |
+| Recherche texte | Saisie libre | Recherche sur titre de la prestation, description, nom kooker, spécialités |
 | Type | Sélection | COURS / KOOK / Tous |
 | Difficulté | Sélection | Apparaît uniquement si Type = COURS ; valeurs : Débutant, Intermédiaire, Avancé |
 | Spécialité | Sélection | Liste issue de la config admin |
 | Ville | Sélection | Marseille, Aix-en-Provence, Cassis, Aubagne, La Ciotat |
-| Prix min/max | Numérique | En euros, basé sur le prix le plus bas du kooker |
+| Prix min/max | Numérique | En euros, basé sur le prix de la prestation |
 
 **Logique des filtres :**
 - Les filtres "en cours de saisie" ne s'appliquent qu'après clic sur "Appliquer"
@@ -183,12 +188,38 @@
 
 ### 4.2 Résultats
 
-- Limite par défaut : 12 kookers par page
-- Affichage en grille responsive (1 → 2 → 3 → 4 colonnes)
-- Tri : kookers vedettes en premier, puis par note décroissante
-- Compteur : *"N Kooker(s) trouvé(s)"*
+- Limite par défaut : 12 prestations par page
+- Affichage en grille responsive (1 → 2 → 3 → 4 colonnes) — composant `ServiceCard`
+- Tri : prestations de kookers vedettes en premier, puis par note décroissante
+- Compteur : *"N prestation(s) trouvée(s)"*
 - État vide : message *"Aucun résultat"* avec suggestion de modifier les filtres
 - Skeleton loader pendant le chargement (8 cartes fantômes)
+
+### 4.3 Clic sur une carte
+
+→ Navigation vers `/prestation/:id` (ServiceDetailPage)
+
+---
+
+## 4b. Détail d'une prestation (`/prestation/:id`)
+
+**Endpoint** : `GET /api/v1/services/:id`
+
+### Sections affichées
+
+1. En-tête : titre, badge type (COURS/KOOK), badges allergènes/régime
+2. Galerie photos avec visionneuse (Dialog)
+3. Description + détails (durée, max convives, difficulté si COURS)
+4. Prix : forfait de base + convives supplémentaires (si applicable)
+5. Ingrédients (si `ingredientsList` renseigné)
+6. Équipements kooker / contraintes client
+7. Encart Kooker : avatar, nom, ville, note, nb avis, spécialités, lien "Voir son profil" → `/kooker/:id`
+8. CTA principal : **"Réserver cette prestation"** → `/reservation?service={id}&kooker={kookerProfileId}`
+
+### Règles
+
+- Route publique (pas d'authentification requise pour consulter)
+- Le bouton "Réserver" redirige vers `/connexion` si l'utilisateur n'est pas connecté (géré par `BookingPage`)
 
 ---
 
