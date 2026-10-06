@@ -312,7 +312,7 @@ export default function ServiceDetailPage() {
                   <p className="text-[14px] text-[#5c5c6f]">{service.equipmentKooker}</p>
                 </div>
               )}
-              {service.constraints && String(service.constraints) !== 'null' && (
+              {!!service.constraints && String(service.constraints) !== 'null' && (
                 <div className="mt-4 pt-4 border-t border-[#f0f0f0]">
                   <p className="text-[13px] font-medium text-[#303044] mb-1">Contraintes :</p>
                   <p className="text-[14px] text-[#5c5c6f]">{String(service.constraints)}</p>
