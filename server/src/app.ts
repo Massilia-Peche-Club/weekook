@@ -59,6 +59,20 @@ app.use(
   })
 );
 
+// ── Permissions-Policy header (BUG-010: not added by Helmet by default) ──
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
+// ── X-Robots-Tag: noindex on non-production (BUG-019) ──
+if (env.NODE_ENV !== 'production') {
+  app.use((_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
+}
+
 // ── CORS ──
 app.use(
   cors({
