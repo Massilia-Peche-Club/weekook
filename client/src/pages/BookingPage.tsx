@@ -311,7 +311,7 @@ export default function BookingPage() {
       }
 
       setCreatedBooking(res.data.booking);
-      toast.success('Réservation confirmée !');
+      toast.success('Demande de réservation envoyée !');
     } catch (err: any) {
       toast.error(err?.error || 'Une erreur est survenue.');
     } finally {
@@ -355,7 +355,7 @@ export default function BookingPage() {
       await api.post(`/bookings/${booking.id}/confirm-payment`, {});
 
       setCreatedBooking(booking);
-      toast.success('Réservation confirmée !');
+      toast.success('Demande de réservation envoyée !');
     } catch (err: any) {
       toast.error(err?.error || 'Une erreur est survenue.');
     } finally {
@@ -452,10 +452,10 @@ export default function BookingPage() {
             </div>
 
             <h1 className="text-[24px] md:text-[28px] font-bold text-[#111125]">
-              Reservation confirmee !
+              Demande envoyée !
             </h1>
             <p className="mt-2 text-[15px] text-[#6b7280]">
-              Votre demande de reservation a bien ete envoyee.
+              Votre demande est en attente de confirmation du kooker.
             </p>
 
             <div className="mt-6 bg-[#f2f4fc] rounded-[16px] p-5 text-left space-y-3">

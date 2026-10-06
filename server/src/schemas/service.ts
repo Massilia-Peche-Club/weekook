@@ -12,10 +12,13 @@ const ingredientItemSchema = z.object({
   unit: z.string(),
 });
 
+// Normalize legacy 'KOURS' → 'COURS'
+const normalizeTypes = (types: string[]) => types.map((t) => (t === 'KOURS' ? 'COURS' : t));
+
 export const createServiceSchema = z.object({
   title: z.string().trim().min(1, 'Le titre est requis'),
   description: z.string().optional(),
-  type: z.array(z.string()).min(1, 'Au moins un type est requis'),
+  type: z.array(z.string()).min(1, 'Au moins un type est requis').transform(normalizeTypes),
   priceInCents: z.number().min(0, 'Le prix doit etre positif'),
   durationMinutes: z.number().min(1, 'La duree doit etre au moins 1 minute'),
   minGuests: z.number().int().min(1).optional(),
@@ -44,7 +47,7 @@ export const createServiceSchema = z.object({
 export const updateServiceSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
-  type: z.array(z.string()).optional(),
+  type: z.array(z.string()).optional().transform((t) => (t ? normalizeTypes(t) : t)),
   priceInCents: z.number().min(0).optional(),
   durationMinutes: z.number().min(1).optional(),
   minGuests: z.number().optional(),

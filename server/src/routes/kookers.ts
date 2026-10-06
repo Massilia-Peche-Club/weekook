@@ -27,7 +27,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 12));
     const skip = (pageNum - 1) * limitNum;
 
-    const where: Prisma.KookerProfileWhereInput = { active: true };
+    const where: Prisma.KookerProfileWhereInput = { active: true, services: { some: { active: true } } };
 
     // When no text search: apply city filter at DB level for performance
     if (city && !q) {
@@ -78,26 +78,28 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     let filtered = kookers;
 
     // Full-text JS filter: name, bio, city, address, specialties (JSON), type (JSON)
+    // BUG-007: normalize accents for accent-insensitive matching
     if (q) {
-      const searchLower = (q as string).toLowerCase();
+      const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const searchNorm = normalize(q as string);
       filtered = filtered.filter((k) => {
-        const fullName = `${k.user.firstName} ${k.user.lastName}`.toLowerCase();
-        const bio = (k.bio || '').toLowerCase();
-        const kCity = (k.city || '').toLowerCase();
-        const address = (k.address || '').toLowerCase();
-        const specialtiesStr = JSON.stringify(k.specialties || []).toLowerCase();
-        const typeStr = JSON.stringify(k.type || []).toLowerCase();
-        const servicesStr = k.services.map((s: any) =>
+        const fullName = normalize(`${k.user.firstName} ${k.user.lastName}`);
+        const bio = normalize(k.bio || '');
+        const kCity = normalize(k.city || '');
+        const address = normalize(k.address || '');
+        const specialtiesStr = normalize(JSON.stringify(k.specialties || []));
+        const typeStr = normalize(JSON.stringify(k.type || []));
+        const servicesStr = normalize(k.services.map((s: any) =>
           `${s.title || ''} ${s.description || ''} ${JSON.stringify(s.specialty || [])}`
-        ).join(' ').toLowerCase();
+        ).join(' '));
         return (
-          fullName.includes(searchLower) ||
-          bio.includes(searchLower) ||
-          kCity.includes(searchLower) ||
-          address.includes(searchLower) ||
-          specialtiesStr.includes(searchLower) ||
-          typeStr.includes(searchLower) ||
-          servicesStr.includes(searchLower)
+          fullName.includes(searchNorm) ||
+          bio.includes(searchNorm) ||
+          kCity.includes(searchNorm) ||
+          address.includes(searchNorm) ||
+          specialtiesStr.includes(searchNorm) ||
+          typeStr.includes(searchNorm) ||
+          servicesStr.includes(searchNorm)
         );
       });
     }
@@ -186,7 +188,7 @@ router.get(
 
       const [totalBookings, pendingBookings, revenueResult, kookerProfile] = await Promise.all([
         prisma.booking.count({
-          where: { kookerProfileId },
+          where: { kookerProfileId, status: { not: 'cancelled' } },
         }),
         prisma.booking.count({
           where: { kookerProfileId, status: 'pending' },
@@ -280,7 +282,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     });
 
     if (!kooker || !kooker.active) {
-      throw new NotFoundError('Profil kooker non trouve');
+      throw new NotFoundError('Profil kooker non trouvé');
     }
 
     const { bookingsReceived, stripeAccountId, stripeOnboardingComplete, address, userId: _uid, ...kookerData } = kooker as any;
@@ -316,7 +318,7 @@ router.post(
       });
 
       if (existing) {
-        throw new AppError('Vous etes deja kooker', 409);
+        throw new AppError('Vous êtes déjà kooker', 409);
       }
 
       const { bio, specialties, type, city, experience, isCompany } = req.body;

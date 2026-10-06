@@ -10,12 +10,13 @@ const router = Router();
 // ── Public: taux de commission (accessible sans auth pour les formulaires) ─────
 router.get('/config/public', async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const keys = ['commissionKours', 'commissionKook', 'specialties', 'kookBaseGuests', 'units', 'tooltipFruitsDesMer', 'tooltipCommission', 'ingredientsChoiceEnabled', 'ingredientsChoiceDefault'];
+    const keys = ['commissionKours', 'commissionKook', 'specialties', 'cities', 'kookBaseGuests', 'units', 'tooltipFruitsDesMer', 'tooltipCommission', 'ingredientsChoiceEnabled', 'ingredientsChoiceDefault'];
     const configs = await prisma.config.findMany({ where: { key: { in: keys } } });
     const result: Record<string, unknown> = {
       commissionKours: 20,
       commissionKook: 20,
       specialties: [],
+      cities: [],
       kookBaseGuests: 6,
       units: [],
       tooltipFruitsDesMer: "produits de la mer à l'exception des poissons",
@@ -115,6 +116,21 @@ router.put('/users/:id', async (req: Request, res: Response, next: NextFunction)
   try {
     const id = parseInt(req.params.id);
     const { role, suspended, isAdmin } = req.body;
+    const requestingAdminId = req.user!.userId;
+
+    // BUG-042: prevent admin from removing their own admin rights
+    if (isAdmin === false && id === requestingAdminId) {
+      res.status(400).json({ success: false, error: 'Vous ne pouvez pas retirer vos propres droits administrateur.' });
+      return;
+    }
+    // BUG-042: prevent removing the last admin
+    if (isAdmin === false) {
+      const adminCount = await prisma.user.count({ where: { isAdmin: true } });
+      if (adminCount <= 1) {
+        res.status(400).json({ success: false, error: 'Impossible : aucun autre administrateur actif sur la plateforme.' });
+        return;
+      }
+    }
 
     const data: any = {};
     if (role !== undefined) data.role = role;
@@ -299,8 +315,20 @@ router.put('/reviews/:id/status', async (req: Request, res: Response, next: Next
       });
       res.json({ success: true, data: { message: 'Avis approuvé' } });
     } else {
-      // Rejected → delete
+      // Rejected → delete + recalculate rating (BUG-036: handles case where review was previously approved)
       await prisma.review.delete({ where: { id } });
+      const agg = await prisma.review.aggregate({
+        where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      await prisma.kookerProfile.update({
+        where: { id: review.kookerProfileId },
+        data: {
+          rating: Math.round((agg._avg.rating || 0) * 10) / 10,
+          reviewCount: agg._count.rating,
+        },
+      });
       res.json({ success: true, data: { message: 'Avis rejeté et supprimé' } });
     }
   } catch (error) {

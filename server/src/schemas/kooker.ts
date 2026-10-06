@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const phoneSchema = z.string().regex(/^[+\d\s\-().]{7,20}$/, 'Format de téléphone invalide').optional();
+
 export const becomeKookerSchema = z.object({
   bio: z.string().optional(),
   specialties: z.array(z.string()),
@@ -7,6 +9,7 @@ export const becomeKookerSchema = z.object({
   city: z.string().min(1, 'La ville est requise'),
   experience: z.string().optional(),
   isCompany: z.boolean().optional(),
+  phone: phoneSchema,
 });
 
 export const updateKookerProfileSchema = z.object({
@@ -20,9 +23,9 @@ export const updateKookerProfileSchema = z.object({
 });
 
 export const updateUserProfileSchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  phone: z.string().optional(),
+  firstName: z.string().trim().min(1).optional(),
+  lastName: z.string().trim().min(1).optional(),
+  phone: phoneSchema,
   email: z.string().email('Email invalide').optional(),
 });
 

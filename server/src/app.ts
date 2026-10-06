@@ -74,6 +74,14 @@ app.use('/api/v1/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 
+// ── Handle malformed JSON (BUG-012) ──
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError && (err as any).status === 400 && 'body' in err) {
+    return res.status(400).json({ success: false, error: 'JSON invalide dans le corps de la requête' });
+  }
+  next(err);
+});
+
 // ── Static files (uploads) ──
 app.use('/uploads', express.static(path.resolve(__dirname, '../../uploads')));
 
@@ -101,7 +109,7 @@ const CONFIG_DEFAULTS: Record<string, unknown> = {
   specialties: ['Provençale', 'Méditerranéenne', 'Pâtisserie', 'Grillades', 'Végétarien', 'Fruits de mer', 'Italienne', 'Asiatique'],
   cities: ['Marseille', 'Aix-en-Provence', 'Cassis', 'La Ciotat', 'Toulon', 'Nice', 'Arles', 'Avignon'],
   allergens: ['Gluten', 'Crustacés', 'Œufs', 'Poisson', 'Arachides', 'Soja', 'Lait', 'Fruits à coque', 'Céleri', 'Moutarde', 'Sésame', 'Sulfites', 'Lupin', 'Mollusques'],
-  serviceTypes: ['KOOK', 'KOURS'],
+  serviceTypes: ['KOOK', 'COURS'],
   units: ['g', 'kg', 'mL', 'L', 'pièce(s)', 'unité(s)', 'c. à soupe', 'c. à café', 'pincée', 'tranche(s)', 'brin(s)', 'feuille(s)', 'gousse(s)', 'portion(s)'],
   platformCommission: 20,
   commissionKours: 20,

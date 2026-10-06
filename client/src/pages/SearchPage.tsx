@@ -4,6 +4,7 @@ import ServiceCard from '@/components/common/ServiceCard';
 import { api } from '@/lib/api';
 import { usePageTiming } from '@/hooks/usePageTiming';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const SERVICE_PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&h=400&fit=crop',
@@ -55,33 +56,13 @@ interface ServicesResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-const SPECIALTIES = [
-  'Toutes',
-  'Provençale',
-  'Méditerranéenne',
-  'Pâtisserie',
-  'Française',
-  'Orientale',
-  'Libanaise',
-  'Végétarienne',
-  'Italienne',
-  'Japonaise',
-  'Couscous',
-  'Brunch',
-  'Healthy',
-  'BBQ',
-  'Fruits de mer',
-  'Gastronomique',
+// Fallback lists used if admin config is empty
+const FALLBACK_SPECIALTIES = [
+  'Provençale', 'Méditerranéenne', 'Pâtisserie', 'Française', 'Orientale',
+  'Libanaise', 'Végétarienne', 'Italienne', 'Japonaise', 'Couscous',
+  'Brunch', 'Healthy', 'BBQ', 'Fruits de mer', 'Gastronomique',
 ];
-
-const CITIES = [
-  'Toutes',
-  'Marseille',
-  'Aix-en-Provence',
-  'Cassis',
-  'Aubagne',
-  'La Ciotat',
-];
+const FALLBACK_CITIES = ['Marseille', 'Aix-en-Provence', 'Cassis', 'Aubagne', 'La Ciotat'];
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 export default function SearchPage() {
@@ -124,6 +105,25 @@ export default function SearchPage() {
   const [results, setResults] = useState<DisplayService[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Config from admin (BUG-008/031)
+  const [configSpecialties, setConfigSpecialties] = useState<string[]>(FALLBACK_SPECIALTIES);
+  const [configCities, setConfigCities] = useState<string[]>(FALLBACK_CITIES);
+
+  useEffect(() => {
+    api.get<{ specialties?: string[]; cities?: string[] }>('/admin/config/public')
+      .then((res) => {
+        if (res.success && res.data) {
+          if (Array.isArray(res.data.specialties) && res.data.specialties.length > 0) {
+            setConfigSpecialties(res.data.specialties);
+          }
+          if (Array.isArray(res.data.cities) && res.data.cities.length > 0) {
+            setConfigCities(res.data.cities);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const parseJsonField = (val: unknown): string[] => {
     if (Array.isArray(val)) return val;
@@ -222,6 +222,11 @@ export default function SearchPage() {
   }, [query, type, specialty, city, minPrice, maxPrice, difficulty, setSearchParams]);
 
   const applyFilters = () => {
+    // BUG-043: validate min ≤ max before applying
+    if (pendingMinPrice && pendingMaxPrice && parseFloat(pendingMinPrice) > parseFloat(pendingMaxPrice)) {
+      toast.error('Le prix minimum ne peut pas être supérieur au maximum.');
+      return;
+    }
     setType(pendingType);
     setSpecialty(pendingSpecialty);
     setCity(pendingCity);
@@ -384,10 +389,9 @@ export default function SearchPage() {
                     onChange={(e) => setPendingSpecialty(e.target.value)}
                     className="h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
                   >
-                    {SPECIALTIES.map((s) => (
-                      <option key={s} value={s}>
-                        {s === 'Toutes' ? 'Toutes les spécialités' : s}
-                      </option>
+                    <option value="Toutes">Toutes les spécialités</option>
+                    {configSpecialties.map((s) => (
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </div>
@@ -430,10 +434,9 @@ export default function SearchPage() {
                     onChange={(e) => setPendingCity(e.target.value)}
                     className="h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
                   >
-                    {CITIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c === 'Toutes' ? 'Toutes les villes' : c}
-                      </option>
+                    <option value="Toutes">Toutes les villes</option>
+                    {configCities.map((c) => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>

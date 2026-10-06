@@ -641,7 +641,6 @@ const KookerDashboardPage = () => {
       <div className="max-w-[1200px] mx-auto px-4 md:px-8 lg:px-[96px] py-8 md:py-12">
         {/* Heading */}
         <div className="mb-8">
-          <p className="text-[13px] text-[#828294] mb-3">/Profil/dashboard_kooker</p>
           <h1 className="text-[32px] md:text-[40px] font-semibold text-[#111125] tracking-[-0.8px] mb-2">
             MON TABLEAU DE BORD KOOKER
           </h1>

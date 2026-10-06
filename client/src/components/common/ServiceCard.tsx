@@ -109,7 +109,7 @@ export default function ServiceCard({
 
         {/* Price + Duration */}
         <div className="flex items-center justify-between pt-1">
-          <span className="text-[16px] font-bold text-[#111125]">{price.toFixed(0)} €</span>
+          <span className="text-[16px] font-bold text-[#111125]">{price.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €</span>
           <span className="text-[12px] text-[#9ca3af]">{durationLabel}</span>
         </div>
       </div>

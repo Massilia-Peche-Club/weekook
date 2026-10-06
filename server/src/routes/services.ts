@@ -156,7 +156,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     });
 
     if (!service) {
-      throw new NotFoundError('Service non trouve');
+      throw new NotFoundError('Service non trouvé');
     }
 
     res.json({
@@ -337,7 +337,7 @@ router.put(
       // Verify ownership
       const existing = await prisma.service.findUnique({ where: { id } });
       if (!existing) {
-        throw new NotFoundError('Service non trouve');
+        throw new NotFoundError('Service non trouvé');
       }
       if (existing.kookerProfileId !== kookerProfileId) {
         throw new ForbiddenError('Vous ne pouvez modifier que vos propres services');
@@ -464,7 +464,7 @@ router.delete(
       // Verify ownership
       const existing = await prisma.service.findUnique({ where: { id } });
       if (!existing) {
-        throw new NotFoundError('Service non trouve');
+        throw new NotFoundError('Service non trouvé');
       }
       if (existing.kookerProfileId !== kookerProfileId) {
         throw new ForbiddenError('Vous ne pouvez supprimer que vos propres services');
@@ -474,7 +474,7 @@ router.delete(
 
       res.json({
         success: true,
-        data: { message: 'Service supprime avec succes' },
+        data: { message: 'Service supprimé avec succès' },
       });
     } catch (error) {
       next(error);

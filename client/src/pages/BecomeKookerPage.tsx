@@ -31,7 +31,11 @@ export default function BecomeKookerPage() {
 
   useEffect(() => {
     document.title = 'Devenir Kooker - Weekook';
-  }, []);
+    // Redirect if already a kooker (BUG-026)
+    if (user?.kookerProfileId) {
+      navigate('/kooker-dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const addSpecialty = () => {
     const trimmed = newSpecialty.trim();

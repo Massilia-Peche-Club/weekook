@@ -126,6 +126,27 @@ async function sendEmail(to: string, subject: string, html: string, label: strin
   }
 }
 
+// ─── Welcome email ────────────────────────────────────────────────────────────
+
+export async function sendWelcomeEmail(
+  userEmail: string,
+  userFirstName: string
+): Promise<void> {
+  const html = emailWrapper(
+    '🎉',
+    `Bienvenue sur Weekook, ${userFirstName} !`,
+    `<p style="color:#6b7280;font-size:14px;margin:0 0 16px 0;">
+      Bonjour ${userFirstName}, votre compte a bien été créé. Bienvenue dans la communauté Weekook !
+    </p>
+    <p style="color:#6b7280;font-size:14px;margin:0 0 16px 0;">
+      Explorez les prestations de nos Kookers passionnés, réservez un repas à domicile ou un cours de cuisine, et vivez des expériences culinaires uniques.
+    </p>`,
+    `${env.APP_URL}/recherche`,
+    'Découvrir les Kookers'
+  );
+  await sendEmail(userEmail, 'Bienvenue sur Weekook !', html, 'welcome');
+}
+
 // ─── Password reset ───────────────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(

@@ -10,6 +10,15 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     });
   }
 
+  // Multer file size limit (BUG-012)
+  if ((err as any).code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ success: false, error: 'Fichier trop volumineux (max 5 Mo)' });
+  }
+  // Multer MIME type rejection (BUG-012)
+  if (err.message?.includes('Type de fichier non autorise')) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+
   console.error('Unexpected error:', err);
 
   // Log 5xx errors to DB (fire-and-forget)

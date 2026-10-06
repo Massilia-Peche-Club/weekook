@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import { verifyToken, signToken, INACTIVITY_TIMEOUT_MS, TOKEN_REFRESH_THRESHOLD_S } from '../utils/jwt.js';
-import { UnauthorizedError } from '../utils/errors.js';
+import { UnauthorizedError, ForbiddenError } from '../utils/errors.js';
 import { env } from '../config/env.js';
 
 // In-memory user cache (TTL 60s) — avoids 1 DB query per authenticated request
@@ -101,14 +101,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
 export function requireKooker(req: Request, _res: Response, next: NextFunction) {
   if (!req.user?.kookerProfileId) {
-    return next(new UnauthorizedError('Acces reserve aux kookers'));
+    return next(new ForbiddenError('Acces reserve aux kookers'));
   }
   next();
 }
 
 export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
   if (!req.user?.isAdmin) {
-    return next(new UnauthorizedError('Acces reserve aux administrateurs'));
+    return next(new ForbiddenError('Acces reserve aux administrateurs'));
   }
   next();
 }

@@ -3,13 +3,13 @@ import prisma from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { signToken, INACTIVITY_TIMEOUT_MS } from '../utils/jwt.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, invalidateAuthCache } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/auth.js';
 import { AppError } from '../utils/errors.js';
 import { env } from '../config/env.js';
-import { sendPasswordResetEmail } from '../lib/email.js';
+import { sendPasswordResetEmail, sendWelcomeEmail } from '../lib/email.js';
 
 const router = Router();
 
@@ -59,6 +59,9 @@ router.post(
       const token = signToken({ userId: user.id, email: user.email });
       res.cookie('token', token, COOKIE_OPTIONS);
 
+      // Send welcome email (fire-and-forget — BUG-034)
+      sendWelcomeEmail(user.email, user.firstName).catch(() => {});
+
       res.status(201).json({
         success: true,
         data: {
@@ -86,12 +89,11 @@ router.post(
         include: { kookerProfile: { select: { id: true } } },
       });
 
-      if (!user) {
-        throw new AppError('Email ou mot de passe incorrect.', 401);
-      }
+      // Always run bcrypt.compare to prevent timing-based account enumeration (BUG-038)
+      const DUMMY_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lh3y';
+      const isValid = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
 
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) {
+      if (!user || !isValid) {
         throw new AppError('Email ou mot de passe incorrect.', 401);
       }
 
@@ -122,7 +124,7 @@ router.post(
 // POST /logout
 router.post('/logout', (_req: Request, res: Response) => {
   res.clearCookie('token', { path: '/' });
-  res.json({ success: true, data: { message: 'Deconnexion reussie' } });
+  res.json({ success: true, data: { message: 'Déconnexion réussie' } });
 });
 
 // GET /me
@@ -137,7 +139,7 @@ router.get(
       });
 
       if (!user) {
-        throw new AppError('Utilisateur non trouve', 404);
+        throw new AppError('Utilisateur non trouvé', 404);
       }
 
       res.json({
@@ -218,6 +220,9 @@ router.post(
         prisma.user.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } }),
         prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { used: true } }),
       ]);
+
+      // Invalidate auth cache so active sessions are forced to re-authenticate (BUG-044)
+      invalidateAuthCache(resetToken.userId);
 
       res.json({ success: true, data: { message: 'Mot de passe réinitialisé avec succès.' } });
     } catch (error) {
