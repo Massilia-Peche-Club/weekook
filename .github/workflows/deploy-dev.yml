@@ -25,3 +25,5 @@ jobs:
             npx prisma db push --accept-data-loss
             npm run build
             pm2 reload weekook-dev
+            # BUG-011: ensure Nginx server_tokens is off (suppress version in headers)
+            grep -q "server_tokens off" /etc/nginx/nginx.conf 2>/dev/null || (sudo sed -i 's/^\(http\s*{\)/\1\n    server_tokens off;/' /etc/nginx/nginx.conf && sudo nginx -t && sudo systemctl reload nginx) || true
