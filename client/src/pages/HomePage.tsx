@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Search, ChevronLeft, ChevronRight, Star, Quote } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import KookerCard from '@/components/common/KookerCard';
+import ServiceCard from '@/components/common/ServiceCard';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import heroImage from '@/assets/d44ea553455097a6377797d27e1f725103cf1bcf.png';
@@ -21,24 +21,25 @@ const KOOKER_PLACEHOLDER_IMAGES = [
 
 // ─── API response types ─────────────────────────────────────────────────────
 
-interface ApiKooker {
+interface ApiService {
   id: number;
-  userId: number;
-  specialties: string;
-  type: string;
-  city: string;
-  rating: number;
-  reviewCount: number;
-  user: { id: number; firstName: string; lastName: string; avatar: string | null };
-  services: { id: number; priceInCents: number; type: string }[];
+  title: string;
+  type: unknown;
+  priceInCents: number;
+  durationMinutes: number;
+  images: { id: number; url: string; isCardImage: boolean; sortOrder: number }[];
+  kookerProfile: {
+    id: number;
+    city: string;
+    rating: number;
+    reviewCount: number;
+    user: { id: number; firstName: string; lastName: string; avatar: string | null };
+  };
 }
 
-interface KookersResponse {
-  kookers: ApiKooker[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+interface ServicesResponse {
+  services: ApiService[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
 interface ApiTestimonial {
@@ -52,15 +53,21 @@ interface ApiTestimonial {
 
 // ─── Display types ──────────────────────────────────────────────────────────
 
-interface DisplayKooker {
+interface DisplayService {
   id: number;
-  name: string;
-  imageUrl: string;
-  city: string;
-  specialties: string[];
-  price: number;
-  rating?: number;
-  reviewCount?: number;
+  title: string;
+  type: string[];
+  priceInCents: number;
+  durationMinutes: number;
+  cardImageUrl: string | null;
+  kooker: {
+    id: number;
+    name: string;
+    avatarUrl: string;
+    city: string;
+    rating: number;
+    reviewCount: number;
+  };
 }
 
 interface DisplayTestimonial {
@@ -146,7 +153,7 @@ export default function HomePage() {
   const [testimonialIndex, setTestimonialIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const [kookers, setKookers] = useState<DisplayKooker[]>([]);
+  const [featuredServices, setFeaturedServices] = useState<DisplayService[]>([]);
   const [testimonials, setTestimonials] = useState<DisplayTestimonial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   usePageTiming('Accueil', !isLoading);
@@ -168,34 +175,48 @@ export default function HomePage() {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const [kookersRes, testimonialsRes] = await Promise.all([
-          api.get<KookersResponse>('/kookers?featured=true&limit=4'),
+        const [servicesRes, testimonialsRes] = await Promise.all([
+          api.get<ServicesResponse>('/services/search?featured=true&limit=4'),
           api.get<ApiTestimonial[]>('/testimonials'),
         ]);
 
-        if (kookersRes.success && kookersRes.data) {
-          const mapped: DisplayKooker[] = kookersRes.data.kookers.map((k, index) => {
-            const specialties: string[] = (() => {
-              try { return JSON.parse(k.specialties); } catch { return []; }
-            })();
-            const lowestPrice = k.services.length > 0
-              ? Math.min(...k.services.map((s) => s.priceInCents)) / 100
-              : 0;
-            const avatarUrl = k.user.avatar
-              ? (k.user.avatar.startsWith('http') ? k.user.avatar : `/uploads/${k.user.avatar}`)
-              : KOOKER_PLACEHOLDER_IMAGES[k.id % KOOKER_PLACEHOLDER_IMAGES.length];
+        const parseJsonField = (val: unknown): string[] => {
+          if (Array.isArray(val)) return val;
+          try {
+            const parsed = JSON.parse(val as string);
+            return Array.isArray(parsed) ? parsed : JSON.parse(parsed);
+          } catch { return []; }
+        };
+        const toUrl = (raw: string | null | undefined): string => {
+          if (!raw) return '';
+          if (raw.startsWith('http') || raw.startsWith('/')) return raw;
+          return `/uploads/${raw}`;
+        };
+
+        if (servicesRes.success && servicesRes.data) {
+          const mapped: DisplayService[] = servicesRes.data.services.map((s) => {
+            const typeArr = parseJsonField(s.type);
+            const cardImg = s.images.find((img) => img.isCardImage) || s.images[0];
+            const cardImageUrl = cardImg ? toUrl(cardImg.url) : null;
+            const avatarUrl = toUrl(s.kookerProfile.user.avatar);
             return {
-              id: k.id,
-              name: `${k.user.firstName} ${k.user.lastName}`,
-              imageUrl: avatarUrl,
-              city: k.city,
-              specialties,
-              price: lowestPrice,
-              rating: k.rating,
-              reviewCount: k.reviewCount,
+              id: s.id,
+              title: s.title,
+              type: typeArr,
+              priceInCents: s.priceInCents,
+              durationMinutes: s.durationMinutes,
+              cardImageUrl: cardImageUrl || avatarUrl || KOOKER_PLACEHOLDER_IMAGES[s.id % KOOKER_PLACEHOLDER_IMAGES.length],
+              kooker: {
+                id: s.kookerProfile.id,
+                name: `${s.kookerProfile.user.firstName} ${s.kookerProfile.user.lastName}`,
+                avatarUrl,
+                city: s.kookerProfile.city || '',
+                rating: s.kookerProfile.rating ?? 0,
+                reviewCount: s.kookerProfile.reviewCount ?? 0,
+              },
             };
           });
-          setKookers(mapped);
+          setFeaturedServices(mapped);
         }
 
         if (testimonialsRes.success && testimonialsRes.data) {
@@ -371,13 +392,13 @@ export default function HomePage() {
         {/* Section Header */}
         <div className="text-center mb-10 md:mb-14">
           <p className="text-[#cdb3fd] text-[14px] md:text-[16px] tracking-[2.56px] uppercase font-semibold mb-3">
-            LES PERSONNES
+            NOS OFFRES
           </p>
           <h2 className="text-[#111125] text-[28px] md:text-[36px] lg:text-[40px] font-semibold leading-tight mb-4">
-            Découvrez nos Kookers
+            Nos prestations à la une
           </h2>
           <p className="text-[#5c5c6f] text-[15px] md:text-[16px] max-w-[520px] mx-auto">
-            Des passionnés de cuisine près de chez vous
+            Les meilleures offres sélectionnées pour vous
           </p>
         </div>
 
@@ -409,15 +430,16 @@ export default function HomePage() {
               </div>
             ))
           ) : (
-            kookers.map((kooker) => (
-              <KookerCard
-                key={kooker.id}
-                id={kooker.id}
-                name={kooker.name}
-                imageUrl={kooker.imageUrl}
-                city={kooker.city}
-                specialties={kooker.specialties}
-                price={kooker.price}
+            featuredServices.map((service) => (
+              <ServiceCard
+                key={service.id}
+                id={service.id}
+                title={service.title}
+                type={service.type}
+                priceInCents={service.priceInCents}
+                durationMinutes={service.durationMinutes}
+                cardImageUrl={service.cardImageUrl}
+                kooker={service.kooker}
               />
             ))
           )}
@@ -429,7 +451,7 @@ export default function HomePage() {
             onClick={() => navigate('/recherche')}
             className="h-[52px] px-8 rounded-[12px] bg-[#c1a0fd] hover:bg-[#b090ed] text-white font-semibold text-[16px] transition-colors cursor-pointer"
           >
-            Voir tous les Kookers
+            Voir toutes les prestations
           </button>
         </div>
       </section>

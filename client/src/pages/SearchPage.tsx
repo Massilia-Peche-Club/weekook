@@ -1,54 +1,58 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import KookerCard from '@/components/common/KookerCard';
+import ServiceCard from '@/components/common/ServiceCard';
 import { api } from '@/lib/api';
 import { usePageTiming } from '@/hooks/usePageTiming';
 import { useAuth } from '@/contexts/AuthContext';
 
-const KOOKER_PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1496952286950-c36951138af4?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1729774092918-f1b7c595cce1?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1760445528879-010bd4b7660b?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1617307744152-60bf7d1da3f8?w=600&h=400&fit=crop',
+const SERVICE_PLACEHOLDER_IMAGES = [
+  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&h=400&fit=crop',
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop',
+  'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&h=400&fit=crop',
+  'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&h=400&fit=crop',
 ];
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 type ServiceType = 'KOOK' | 'COURS' | 'BOTH' | '';
 type SortOption = 'pertinence' | 'prix-asc' | 'prix-desc' | 'note';
 
-interface Kooker {
+interface DisplayService {
   id: number;
-  name: string;
-  imageUrl: string;
-  avatarUrl: string;
-  city: string;
-  specialties: string[];
-  price: number;
-  rating: number;
-  reviewCount: number;
-  type: ServiceType | string;
-  types: string[];
+  title: string;
+  type: string[];
+  priceInCents: number;
+  durationMinutes: number;
+  cardImageUrl: string | null;
+  kooker: {
+    id: number;
+    name: string;
+    avatarUrl: string;
+    city: string;
+    rating: number;
+    reviewCount: number;
+  };
 }
 
 // ─── API Response Types ─────────────────────────────────────────────────────────
-interface ApiKooker {
+interface ApiService {
   id: number;
-  userId: number;
-  specialties: string;
-  type: string;
-  city: string;
-  rating: number;
-  reviewCount: number;
-  user: { id: number; firstName: string; lastName: string; avatar: string | null };
-  services: { id: number; priceInCents: number; type: string; images?: { url: string; isCardImage: boolean }[] }[];
+  title: string;
+  type: unknown;
+  priceInCents: number;
+  durationMinutes: number;
+  images: { id: number; url: string; isCardImage: boolean; sortOrder: number }[];
+  kookerProfile: {
+    id: number;
+    city: string;
+    rating: number;
+    reviewCount: number;
+    user: { id: number; firstName: string; lastName: string; avatar: string | null };
+  };
 }
 
-interface KookersResponse {
-  kookers: ApiKooker[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+interface ServicesResponse {
+  services: ApiService[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
 const SPECIALTIES = [
@@ -117,61 +121,54 @@ export default function SearchPage() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   usePageTiming('Recherche', !isLoading);
-  const [results, setResults] = useState<Kooker[]>([]);
+  const [results, setResults] = useState<DisplayService[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Map API kooker to local Kooker format
-  const parseJsonField = (val: any): string[] => {
+  const parseJsonField = (val: unknown): string[] => {
     if (Array.isArray(val)) return val;
-    try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : JSON.parse(parsed); } catch { return []; }
+    try {
+      const parsed = JSON.parse(val as string);
+      return Array.isArray(parsed) ? parsed : JSON.parse(parsed);
+    } catch { return []; }
   };
 
-  // Gère les deux formats stockés en DB : juste "filename.jpg" ou déjà "/uploads/filename.jpg"
   const toUrl = (raw: string | null | undefined): string => {
     if (!raw) return '';
     if (raw.startsWith('http') || raw.startsWith('/')) return raw;
     return `/uploads/${raw}`;
   };
 
-  const mapKooker = (k: ApiKooker): Kooker => {
-    const specialties = parseJsonField(k.specialties);
-    const typeArr = parseJsonField(k.type);
-    // Collect all service types across all services
-    const allServiceTypes = Array.from(new Set(
-      k.services.flatMap((s) => parseJsonField(s.type))
-    )) as string[];
-    const lowestPrice = k.services.length > 0
-      ? Math.min(...k.services.map((s) => s.priceInCents)) / 100
-      : 0;
-    const avatarUrl = toUrl(k.user.avatar);
-    // Image de vignette : préférer isCardImage=true, sinon première image disponible
-    const allServiceImages = k.services.flatMap((s) => s.images || []);
-    const bestImage = allServiceImages.find((img) => img.isCardImage) || allServiceImages[0];
-    const cardImageUrl = toUrl(bestImage?.url) || null;
-    const imageUrl = cardImageUrl || avatarUrl || KOOKER_PLACEHOLDER_IMAGES[k.id % KOOKER_PLACEHOLDER_IMAGES.length];
+  const mapService = (s: ApiService): DisplayService => {
+    const typeArr = parseJsonField(s.type);
+    const cardImg = s.images.find((img) => img.isCardImage) || s.images[0];
+    const cardImageUrl = cardImg ? toUrl(cardImg.url) : null;
+    const avatarUrl = toUrl(s.kookerProfile.user.avatar);
+    const imageUrl = cardImageUrl || avatarUrl || SERVICE_PLACEHOLDER_IMAGES[s.id % SERVICE_PLACEHOLDER_IMAGES.length];
     return {
-      id: k.id,
-      name: `${k.user.firstName} ${k.user.lastName}`,
-      imageUrl,
-      avatarUrl,
-      city: k.city || '',
-      specialties,
-      price: lowestPrice,
-      rating: k.rating ?? 0,
-      reviewCount: k.reviewCount ?? 0,
-      type: typeArr[0] || '',
-      types: allServiceTypes,
+      id: s.id,
+      title: s.title,
+      type: typeArr,
+      priceInCents: s.priceInCents,
+      durationMinutes: s.durationMinutes,
+      cardImageUrl: imageUrl,
+      kooker: {
+        id: s.kookerProfile.id,
+        name: `${s.kookerProfile.user.firstName} ${s.kookerProfile.user.lastName}`,
+        avatarUrl,
+        city: s.kookerProfile.city || '',
+        rating: s.kookerProfile.rating ?? 0,
+        reviewCount: s.kookerProfile.reviewCount ?? 0,
+      },
     };
   };
 
-  // Fetch kookers from API
-  const fetchKookers = useCallback(async () => {
+  // Fetch services from API
+  const fetchServices = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set('q', query.trim());
-      // BOTH means no type filter (all types)
       if (type && type !== 'BOTH') params.set('type', type);
       if (specialty !== 'Toutes') params.set('specialty', specialty);
       if (city !== 'Toutes') params.set('city', city);
@@ -182,12 +179,12 @@ export default function SearchPage() {
       params.set('limit', '12');
 
       const queryString = params.toString();
-      const path = `/kookers${queryString ? `?${queryString}` : ''}`;
-      const res = await api.get<KookersResponse>(path);
+      const path = `/services/search${queryString ? `?${queryString}` : ''}`;
+      const res = await api.get<ServicesResponse>(path);
 
       if (res.success && res.data) {
-        setResults(res.data.kookers.map(mapKooker));
-        setTotalResults(res.data.total);
+        setResults(res.data.services.map(mapService));
+        setTotalResults(res.data.pagination.total);
       } else {
         setResults([]);
         setTotalResults(0);
@@ -204,12 +201,12 @@ export default function SearchPage() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchKookers();
+      fetchServices();
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [fetchKookers]);
+  }, [fetchServices]);
 
   // Sync applied filters to URL
   useEffect(() => {
@@ -267,7 +264,7 @@ export default function SearchPage() {
           {/* Titre visiteurs non connectés */}
           {!user && (
             <h1 className="text-[18px] font-semibold text-[#111125] mb-4">
-              Je cherche un Kooker
+              Je cherche une prestation
             </h1>
           )}
 
@@ -283,7 +280,7 @@ export default function SearchPage() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Rechercher par nom, ville ou spécialité..."
+                placeholder="Rechercher par titre, kooker, spécialité..."
                 className="w-full h-[52px] pl-12 pr-10 bg-white border-2 border-[#c1a0fd] rounded-[12px] text-[15px] text-[#111125] placeholder:text-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent transition-all"
               />
               {query && (
@@ -321,7 +318,7 @@ export default function SearchPage() {
             {isLoading ? (
               <span className="inline-block w-32 h-4 bg-[#e5e7eb] rounded animate-pulse" />
             ) : (
-              <>{totalResults} Kooker{totalResults !== 1 ? 's' : ''} trouvé{totalResults !== 1 ? 's' : ''}</>
+              <>{totalResults} prestation{totalResults !== 1 ? 's' : ''} trouvée{totalResults !== 1 ? 's' : ''}</>
             )}
           </p>
 
@@ -395,7 +392,7 @@ export default function SearchPage() {
                   </select>
                 </div>
 
-                {/* Prix par personne */}
+                {/* Prix */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[13px] font-medium text-[#303044]">Prix par personne</label>
                   <div className="flex items-center gap-2 h-[48px]">
@@ -442,7 +439,7 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* Active filter tags / Aucun filtre actif */}
+              {/* Active filter tags */}
               <div className="flex items-center gap-2 flex-wrap mt-2 mb-2 min-h-[28px]">
                 {!hasActiveFilters && (
                   <span className="text-[13px] text-[#9ca3af] italic">Aucun filtre actif</span>
@@ -534,7 +531,7 @@ export default function SearchPage() {
           <div className="flex flex-col items-center justify-center -mt-6 pb-24">
             <h3 className="text-[18px] font-semibold text-[#111125] mb-2">Aucun résultat</h3>
             <p className="text-[14px] text-[#6b7280] text-center max-w-[400px] mb-5">
-              Aucun kooker ne correspond à vos critères. Essayez de modifier vos filtres.
+              Aucune prestation ne correspond à vos critères. Essayez de modifier vos filtres.
             </p>
             <button
               onClick={resetFilters}
@@ -551,23 +548,20 @@ export default function SearchPage() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="w-full max-w-[286px] h-[429px] bg-white rounded-[20px] overflow-hidden animate-pulse">
                 <div className="p-3">
-                  <div className="w-full h-[200px] bg-[#e5e7eb] rounded-[24px]" />
+                  <div className="w-full h-[200px] bg-[#e5e7eb] rounded-[16px]" />
                 </div>
                 <div className="px-4 space-y-3">
+                  <div className="h-4 bg-[#e5e7eb] rounded w-3/4" />
                   <div className="flex items-center gap-3">
-                    <div className="w-[40px] h-[40px] bg-[#e5e7eb] rounded-full" />
+                    <div className="w-[32px] h-[32px] bg-[#e5e7eb] rounded-full" />
                     <div className="space-y-1.5 flex-1">
-                      <div className="h-4 bg-[#e5e7eb] rounded w-3/4" />
+                      <div className="h-3 bg-[#e5e7eb] rounded w-3/4" />
                       <div className="h-3 bg-[#e5e7eb] rounded w-1/2" />
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="h-6 bg-[#e5e7eb] rounded-full w-20" />
-                    <div className="h-6 bg-[#e5e7eb] rounded-full w-16" />
-                  </div>
                   <div className="flex justify-between items-center">
                     <div className="h-5 bg-[#e5e7eb] rounded w-16" />
-                    <div className="h-4 bg-[#e5e7eb] rounded w-24" />
+                    <div className="h-4 bg-[#e5e7eb] rounded w-16" />
                   </div>
                 </div>
               </div>
@@ -578,17 +572,16 @@ export default function SearchPage() {
         {/* Results Grid */}
         {!isLoading && results.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center">
-            {results.map((kooker) => (
-              <KookerCard
-                key={kooker.id}
-                id={kooker.id}
-                name={kooker.name}
-                imageUrl={kooker.imageUrl}
-                avatarUrl={kooker.avatarUrl}
-                city={kooker.city}
-                specialties={kooker.specialties}
-                price={kooker.price}
-                types={kooker.types}
+            {results.map((service) => (
+              <ServiceCard
+                key={service.id}
+                id={service.id}
+                title={service.title}
+                type={service.type}
+                priceInCents={service.priceInCents}
+                durationMinutes={service.durationMinutes}
+                cardImageUrl={service.cardImageUrl}
+                kooker={service.kooker}
               />
             ))}
           </div>

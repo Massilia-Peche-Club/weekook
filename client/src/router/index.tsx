@@ -22,6 +22,7 @@ const BookingPage = lazy(() => import('@/pages/BookingPage').then(m => ({ defaul
 const FaqPage = lazy(() => import('@/pages/FaqPage').then(m => ({ default: m.default })));
 const MessagesPage = lazy(() => import('@/pages/MessagesPage').then(m => ({ default: m.default })));
 const BookingDetailPage = lazy(() => import('@/pages/BookingDetailPage').then(m => ({ default: m.default })));
+const ServiceDetailPage = lazy(() => import('@/pages/ServiceDetailPage').then(m => ({ default: m.default })));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.default })));
 const UserProfilePage = lazy(() => import('@/pages/UserProfilePage').then(m => ({ default: m.default })));
 const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.default })));
@@ -50,6 +51,7 @@ export function AppRouter() {
           <Route path="/" element={<HomePage />} />
           <Route path="/recherche" element={<SearchPage />} />
           <Route path="/kooker/:id" element={<KookerProfilePage />} />
+          <Route path="/prestation/:id" element={<ServiceDetailPage />} />
           <Route path="/tarification" element={<PricingPage />} />
           <Route path="/a-propos" element={<AboutPage />} />
           <Route path="/avantages" element={<BenefitsPage />} />

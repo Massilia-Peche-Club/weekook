@@ -33,6 +33,98 @@ router.get('/kooker/:id', async (req: Request, res: Response, next: NextFunction
   }
 });
 
+// GET /search - Search services with filters
+router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      q,
+      type,
+      specialty,
+      city,
+      minPrice,
+      maxPrice,
+      featured,
+      page = '1',
+      limit = '12',
+    } = req.query as Record<string, string>;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 12));
+    const skip = (pageNum - 1) * limitNum;
+
+    const kookerFilter: Record<string, unknown> = { active: true };
+    if (featured === 'true') kookerFilter.featured = true;
+    if (city) kookerFilter.city = { contains: city };
+    if (specialty) kookerFilter.specialties = { string_contains: specialty };
+
+    const serviceWhere: Record<string, unknown> = {
+      active: true,
+      kookerProfile: kookerFilter,
+    };
+    if (type) serviceWhere.type = { string_contains: type };
+    if (minPrice || maxPrice) {
+      const priceFilter: Record<string, number> = {};
+      if (minPrice) priceFilter.gte = Math.round(parseFloat(minPrice) * 100);
+      if (maxPrice) priceFilter.lte = Math.round(parseFloat(maxPrice) * 100);
+      serviceWhere.priceInCents = priceFilter;
+    }
+    if (q) {
+      serviceWhere.OR = [
+        { title: { contains: q } },
+        { description: { contains: q } },
+        { kookerProfile: { user: { firstName: { contains: q } } } },
+        { kookerProfile: { user: { lastName: { contains: q } } } },
+        { kookerProfile: { specialties: { string_contains: q } } },
+      ];
+    }
+
+    const [services, total] = await Promise.all([
+      prisma.service.findMany({
+        where: serviceWhere as any,
+        include: {
+          images: {
+            take: 2,
+            orderBy: { sortOrder: 'asc' },
+          },
+          kookerProfile: {
+            select: {
+              id: true,
+              city: true,
+              rating: true,
+              reviewCount: true,
+              featured: true,
+              verified: true,
+              user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+            },
+          },
+        },
+        orderBy: [
+          { kookerProfile: { featured: 'desc' } } as any,
+          { kookerProfile: { rating: 'desc' } } as any,
+        ],
+        skip,
+        take: limitNum,
+      }),
+      prisma.service.count({ where: serviceWhere as any }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        services,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /:id - Get single service
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -49,6 +141,14 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         kookerProfile: {
           select: {
             id: true,
+            city: true,
+            rating: true,
+            reviewCount: true,
+            bio: true,
+            specialties: true,
+            experience: true,
+            featured: true,
+            verified: true,
             user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
           },
         },
