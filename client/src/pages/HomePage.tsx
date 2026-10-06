@@ -456,6 +456,56 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ═══════════════════════ KOOK / KOURS SECTION ═══════════════════════ */}
+      <section className="px-4 md:px-8 lg:px-[96px] pb-[48px] md:pb-[64px]">
+        <div className="text-center mb-8">
+          <p className="text-[#cdb3fd] text-[14px] tracking-[2.56px] uppercase font-semibold mb-3">LES 2 TYPES DE PRESTATION</p>
+          <h2 className="text-[#111125] text-[26px] md:text-[32px] font-semibold leading-tight">
+            KOOK ou KOURS ?
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-[860px] mx-auto">
+          {/* KOOK */}
+          <div className="bg-white rounded-[20px] p-6 md:p-8 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-[32px]">🍽️</span>
+              <div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#ffe4b5] text-[#a05a00] text-[12px] font-bold uppercase tracking-wide">KOOK</span>
+              </div>
+            </div>
+            <h3 className="text-[20px] font-bold text-[#111125]">Repas à domicile</h3>
+            <p className="text-[14px] text-[#5c5c6f] leading-relaxed">
+              Le Kooker se déplace chez vous pour préparer un repas complet. Vous n'avez rien à faire : il cuisine, dresse les assiettes et repart en laissant votre cuisine propre. Idéal pour les dîners en famille, les soirées entre amis ou les événements d'entreprise.
+            </p>
+            <button
+              onClick={() => navigate('/recherche?type=KOOK')}
+              className="mt-auto h-[44px] px-6 rounded-[12px] bg-[#f3ecff] text-[#c1a0fd] font-semibold text-[14px] hover:bg-[#c1a0fd] hover:text-white transition-all cursor-pointer"
+            >
+              Découvrir les KOOK
+            </button>
+          </div>
+          {/* KOURS */}
+          <div className="bg-white rounded-[20px] p-6 md:p-8 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-[32px]">👨‍🍳</span>
+              <div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#d1f5d3] text-[#1a7c2a] text-[12px] font-bold uppercase tracking-wide">KOURS</span>
+              </div>
+            </div>
+            <h3 className="text-[20px] font-bold text-[#111125]">Cours de cuisine</h3>
+            <p className="text-[14px] text-[#5c5c6f] leading-relaxed">
+              Un Kooker passionné vous enseigne ses techniques et recettes. Seul, en duo ou en groupe, apprenez à cuisiner un plat spécifique dans une ambiance conviviale. Repartez avec les recettes et les bons gestes !
+            </p>
+            <button
+              onClick={() => navigate('/recherche?type=COURS')}
+              className="mt-auto h-[44px] px-6 rounded-[12px] bg-[#f3ecff] text-[#c1a0fd] font-semibold text-[14px] hover:bg-[#c1a0fd] hover:text-white transition-all cursor-pointer"
+            >
+              Découvrir les KOURS
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ═══════════════════════ TESTIMONIALS SECTION ═══════════════════════ */}
       <section className="px-4 md:px-8 lg:px-[96px] py-[48px] md:py-[64px] lg:py-[80px]">
         <div className="bg-[#f8f9fc] rounded-[24px] px-6 md:px-10 lg:px-14 py-10 md:py-14 lg:py-16">

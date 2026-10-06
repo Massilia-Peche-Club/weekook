@@ -26,6 +26,7 @@ const ServiceDetailPage = lazy(() => import('@/pages/ServiceDetailPage').then(m 
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.default })));
 const UserProfilePage = lazy(() => import('@/pages/UserProfilePage').then(m => ({ default: m.default })));
 const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.default })));
+const ContactPage = lazy(() => import('@/pages/ContactPage').then(m => ({ default: m.default })));
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout').then(m => ({ default: m.default })));
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage').then(m => ({ default: m.default })));
 const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage').then(m => ({ default: m.default })));
@@ -58,6 +59,7 @@ export function AppRouter() {
           <Route path="/avantages" element={<BenefitsPage />} />
           <Route path="/confiance" element={<TrustPage />} />
           <Route path="/faq" element={<FaqPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/tableau-de-bord" element={
             <ProtectedRoute><UserDashboardPage /></ProtectedRoute>
           } />

@@ -242,19 +242,11 @@ export default function FaqPage() {
             Notre équipe est disponible pour vous aider. Contactez-nous directement ou rejoignez la communauté Weekook.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
-            {!user && (
-              <button
-                onClick={() => navigate('/connexion')}
-                className="h-[52px] px-8 rounded-[12px] bg-white text-[#c1a0fd] font-semibold text-[15px] hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                Créer un compte
-              </button>
-            )}
             <button
-              onClick={() => navigate('/recherche')}
-              className="h-[52px] px-8 rounded-[12px] border-2 border-white text-white font-semibold text-[15px] hover:bg-white/10 transition-colors cursor-pointer"
+              onClick={() => navigate('/contact')}
+              className="h-[52px] px-8 rounded-[12px] bg-white text-[#c1a0fd] font-semibold text-[15px] hover:bg-gray-50 transition-colors cursor-pointer"
             >
-              Découvrir les Kookers
+              Nous contacter
             </button>
           </div>
         </div>

@@ -587,8 +587,8 @@ const KookerDashboardPage = () => {
     },
     {
       key: 'planning' as const,
-      label: 'Planning',
-      shortLabel: 'Plan.',
+      label: 'Disponibilités',
+      shortLabel: 'Dispo.',
       icon: (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2"/>
@@ -790,6 +790,25 @@ const KookerDashboardPage = () => {
             subtitle="Depuis le début"
             color="bg-green-500"
           />
+        </div>
+
+        {/* Guides Kooker */}
+        <div className="bg-white rounded-[20px] p-5 mb-6 shadow-sm">
+          <p className="text-[13px] font-semibold text-[#303044]/60 uppercase tracking-wide mb-3">Guides &amp; Ressources Kooker</p>
+          <div className="flex flex-wrap gap-3">
+            <a href="/faq" className="inline-flex items-center gap-2 px-4 py-2 bg-[#f3ecff] text-[#c1a0fd] text-[13px] font-semibold rounded-[10px] hover:bg-[#c1a0fd] hover:text-white transition-all cursor-pointer no-underline">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/><path d="M8 11v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M8 5a1.5 1.5 0 0 1 1.5 1.5c0 1-1.5 1.5-1.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+              FAQ
+            </a>
+            <a href="/contact" className="inline-flex items-center gap-2 px-4 py-2 bg-[#f3ecff] text-[#c1a0fd] text-[13px] font-semibold rounded-[10px] hover:bg-[#c1a0fd] hover:text-white transition-all cursor-pointer no-underline">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13.5 2.5h-11A1 1 0 0 0 1.5 3.5v7a1 1 0 0 0 1 1h3l2.5 2.5 2.5-2.5h3a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg>
+              Nous contacter
+            </a>
+            <a href="/avantages" className="inline-flex items-center gap-2 px-4 py-2 bg-[#f3ecff] text-[#c1a0fd] text-[13px] font-semibold rounded-[10px] hover:bg-[#c1a0fd] hover:text-white transition-all cursor-pointer no-underline">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5 9.6 5.8l4.4.4-3.3 3 1 4.3L8 11.3l-3.7 2.2 1-4.3-3.3-3 4.4-.4Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+              Avantages Kooker
+            </a>
+          </div>
         </div>
 
         {/* Tabs */}

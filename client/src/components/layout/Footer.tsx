@@ -1,30 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 
-const quickLinks = [
-  { label: 'Accueil', path: '/' },
-  { label: 'A propos de nous', path: '/a-propos' },
-  { label: 'Tarification', path: '/tarification' },
-  { label: 'Se connecter', path: '/connexion' },
-];
-
 const discoverLinks = [
   { label: 'Notre histoire', path: '/a-propos' },
   { label: 'Les avantages Weekook', path: '/avantages' },
   { label: 'Garantie et Confiance', path: '/confiance' },
-  { label: 'Meet the Team', path: '#' },
-  { label: 'Careers', path: '#' },
+  { label: 'Tarification', path: '/tarification' },
 ];
 
 const helpLinks = [
   { label: 'FAQ', path: '/faq' },
-  { label: 'Contact', path: '#' },
-  { label: 'Les Kookers Guides !', path: '#' },
-];
-
-const legalLinks = [
+  { label: 'Contact', path: '/contact' },
   { label: 'CGU', path: '#' },
-  { label: 'Privacy Policy ou pas', path: '#' },
-  { label: 'Gestion des cookies', path: '#' },
 ];
 
 function FooterColumn({
@@ -71,10 +57,8 @@ export function Footer() {
         <div className="flex flex-col md:flex-row items-start justify-between gap-[40px]">
           {/* Link Columns */}
           <div className="flex flex-col md:flex-row gap-[24px] md:gap-[72px]">
-            <FooterColumn title="Liens rapides" links={quickLinks} onNavigate={handleNavigate} />
             <FooterColumn title="Découvrir" links={discoverLinks} onNavigate={handleNavigate} />
-            <FooterColumn title="AIDE" links={helpLinks} onNavigate={handleNavigate} />
-            <FooterColumn title="legal" links={legalLinks} onNavigate={handleNavigate} />
+            <FooterColumn title="Aide &amp; Confiance" links={helpLinks} onNavigate={handleNavigate} />
           </div>
 
           {/* Newsletter */}

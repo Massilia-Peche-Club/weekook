@@ -89,7 +89,7 @@ export function Navbar() {
 
                 {/* Profile icon */}
                 <button
-                  onClick={() => navigate('/tableau-de-bord')}
+                  onClick={() => navigate(user.kookerProfileId ? '/kooker-dashboard' : '/tableau-de-bord')}
                   className={`w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${
                     isUserDashboard
                       ? 'ring-2 ring-[#c1a0fd] ring-offset-2'
@@ -205,7 +205,7 @@ export function Navbar() {
                 )}
 
                 <button
-                  onClick={() => navigate('/tableau-de-bord')}
+                  onClick={() => navigate(user.kookerProfileId ? '/kooker-dashboard' : '/tableau-de-bord')}
                   className={`p-4 rounded-lg font-medium text-[18px] transition-colors text-left cursor-pointer ${
                     isUserDashboard ? 'bg-[#c1a0fd] text-[#111125]' : 'bg-white hover:bg-[#f3ecff] text-[#303044]'
                   }`}

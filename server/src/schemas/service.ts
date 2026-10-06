@@ -61,7 +61,7 @@ export const updateServiceSchema = z.object({
   equipmentProvided: z.boolean().optional(),
   ingredientsList: z.array(ingredientItemSchema).optional(),
   ingredientsBaseServings: z.number().int().min(1).optional(),
-  ingredientsPricePerGuestInCents: z.number().int().min(0).optional(),
+  ingredientsPricePerGuestInCents: z.number().int().min(0).nullable().optional(),
   ingredientsDefaultSource: z.enum(['client', 'kooker']).optional(),
   equipmentKooker: z.array(z.string()).optional(),
   extraGuestPriceInCents: z.number().min(0).optional(),
