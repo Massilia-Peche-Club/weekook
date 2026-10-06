@@ -126,26 +126,34 @@ async function seedConfig() {
 }
 
 // ── Start server ──
-app.listen(env.PORT, async () => {
-  console.log(`Server running on http://localhost:${env.PORT}`);
-  // Warmup : single ping to verify DB connectivity
+async function start() {
+  // Connect to DB before accepting any HTTP traffic
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    console.log('Database connection ready');
+    await prisma.$connect();
     await seedConfig();
-    startBookingCompletionCron();
+    console.log('Database connection ready');
   } catch (e) {
     console.error('Database connection failed:', e);
+    process.exit(1);
   }
 
-  // Keepalive : single ping toutes les 60s pour maintenir la connexion
-  setInterval(async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-    } catch (e) {
-      console.error('DB keepalive failed:', e);
-    }
-  }, 60_000);
-});
+  app.listen(env.PORT, () => {
+    console.log(`Server running on http://localhost:${env.PORT}`);
+    startBookingCompletionCron();
+    // Signal PM2 that the worker is ready (graceful reload)
+    process.send?.('ready');
+
+    // Keepalive : ping toutes les 30s pour maintenir la connexion idle
+    setInterval(async () => {
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+      } catch (e) {
+        console.error('DB keepalive failed:', e);
+      }
+    }, 30_000);
+  });
+}
+
+start();
 
 export default app;
