@@ -286,6 +286,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const { bookingsReceived, stripeAccountId, stripeOnboardingComplete, address, userId: _uid, ...kookerData } = kooker as any;
+    // BUG-035: expose boolean so frontend can warn when Stripe onboarding is incomplete
+    const stripeReady = !!(stripeAccountId && stripeOnboardingComplete);
     const confirmedSlots = (bookingsReceived || []).map((b: any) => {
       const rawDate: Date = b.date;
       const dateStr = rawDate instanceof Date
@@ -297,7 +299,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
     res.json({
       success: true,
-      data: { ...kookerData, confirmedSlots },
+      data: { ...kookerData, confirmedSlots, stripeReady },
     });
   } catch (error) {
     next(error);

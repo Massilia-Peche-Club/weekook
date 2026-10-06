@@ -212,7 +212,7 @@ router.post(
       });
 
       if (!service) {
-        throw new NotFoundError('Service non trouve');
+        throw new NotFoundError('Service non trouvé');
       }
 
       if (!service.active) {
@@ -662,10 +662,10 @@ router.put(
       // Verify the kooker owns this booking
       const booking = await prisma.booking.findUnique({ where: { id } });
       if (!booking) {
-        throw new NotFoundError('Reservation non trouvee');
+        throw new NotFoundError('Réservation non trouvée');
       }
       if (booking.kookerProfileId !== kookerProfileId) {
-        throw new ForbiddenError('Vous ne pouvez modifier que vos propres reservations');
+        throw new ForbiddenError('Vous ne pouvez modifier que vos propres réservations');
       }
 
       // ── Date validation: block acceptance if date is past ──
@@ -723,7 +723,9 @@ router.put(
             });
           }
         } catch (stripeError) {
+          // BUG-027: mark payment as refund_failed so badge reflects actual state
           console.error('[booking] Stripe cancel/refund failed:', stripeError);
+          await prisma.booking.update({ where: { id }, data: { paymentStatus: 'refund_failed' } });
           await prisma.payment.create({
             data: { bookingId: id, stripePaymentIntentId: booking.stripePaymentIntentId, type: 'refund', amountInCents: booking.totalPriceInCents, status: 'failed', metadata: { error: String(stripeError) } },
           });
@@ -824,7 +826,7 @@ router.put(
 
       const booking = await prisma.booking.findUnique({ where: { id } });
       if (!booking) {
-        throw new NotFoundError('Reservation non trouvee');
+        throw new NotFoundError('Réservation non trouvée');
       }
 
       // User or kooker can cancel
@@ -832,15 +834,15 @@ router.put(
       const isKooker = kookerProfileId && booking.kookerProfileId === kookerProfileId;
 
       if (!isOwner && !isKooker) {
-        throw new ForbiddenError('Vous ne pouvez annuler que vos propres reservations');
+        throw new ForbiddenError('Vous ne pouvez annuler que vos propres réservations');
       }
 
       if (booking.status === 'cancelled') {
-        throw new AppError('Cette reservation est deja annulee', 400);
+        throw new AppError('Cette réservation est déjà annulée', 400);
       }
 
       if (booking.status === 'completed') {
-        throw new AppError('Impossible d\'annuler une reservation terminee', 400);
+        throw new AppError('Impossible d\'annuler une réservation terminée', 400);
       }
 
       // Fetch full booking info before update for notifications
@@ -874,7 +876,9 @@ router.put(
             });
           }
         } catch (stripeError) {
+          // BUG-027: mark payment as refund_failed so badge reflects actual state
           console.error('[booking] Stripe cancel/refund failed:', stripeError);
+          await prisma.booking.update({ where: { id }, data: { paymentStatus: 'refund_failed' } });
           await prisma.payment.create({
             data: { bookingId: id, stripePaymentIntentId: booking.stripePaymentIntentId, type: 'refund', amountInCents: booking.totalPriceInCents, status: 'failed', metadata: { error: String(stripeError) } },
           });

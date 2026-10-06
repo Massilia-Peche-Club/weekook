@@ -87,6 +87,7 @@ interface KookerProfile {
   reviews: Review[];
   availabilities: Availability[];
   confirmedSlots: ConfirmedSlot[];
+  stripeReady: boolean;
 }
 
 // ─── Helper: Parse JSON string safely ───────────────────────────────────────────
@@ -126,6 +127,7 @@ function mapApiToProfile(data: any): KookerProfile {
     specialties: safeJsonParse<string[]>(data.specialties, []),
     rating: data.rating || 0,
     reviewCount: data.reviewCount || 0,
+    stripeReady: data.stripeReady === true,
     yearsExperience: data.experience ? parseInt(data.experience, 10) || 0 : 0,
     services: (data.services || [])
       .filter((s: any) => s.active)
@@ -831,12 +833,21 @@ export default function KookerProfilePage() {
                                 >
                                   Contacter
                                 </button>
-                                <button
-                                  onClick={() => { if (!user) { navigate('/connexion'); return; } navigate(`/reservation?service=${service.id}&kooker=${profile.id}`); }}
-                                  className="px-4 py-2 bg-[#c1a0fd] text-white text-[13px] font-semibold rounded-[10px] hover:bg-[#b090ed] transition-all whitespace-nowrap flex-shrink-0"
-                                >
-                                  {service.types.includes('COURS') ? 'Réserver ce cours' : 'Réserver'}
-                                </button>
+                                {profile.stripeReady ? (
+                                  <button
+                                    onClick={() => { if (!user) { navigate('/connexion'); return; } navigate(`/reservation?service=${service.id}&kooker=${profile.id}`); }}
+                                    className="px-4 py-2 bg-[#c1a0fd] text-white text-[13px] font-semibold rounded-[10px] hover:bg-[#b090ed] transition-all whitespace-nowrap flex-shrink-0"
+                                  >
+                                    {service.types.includes('COURS') ? 'Réserver ce cours' : 'Réserver'}
+                                  </button>
+                                ) : (
+                                  <span
+                                    title="Ce kooker n'accepte pas encore les paiements en ligne."
+                                    className="px-4 py-2 bg-[#e5e7eb] text-[#9ca3af] text-[13px] font-semibold rounded-[10px] cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                                  >
+                                    Indisponible
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
