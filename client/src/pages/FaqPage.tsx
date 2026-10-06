@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ const FAQ_ITEMS = [
     category: 'kooker',
     question: 'Comment gérer mes disponibilités ?',
     answer:
-      "Depuis votre tableau de bord Kooker, accédez à l'onglet \"Planning\" pour définir vos jours et horaires de disponibilité. Vous pouvez bloquer des dates, définir des créneaux récurrents et gérer vos réservations entrantes. Les clients ne peuvent réserver que sur les créneaux que vous avez marqués comme disponibles.",
+      "Depuis votre tableau de bord Kooker, accédez à l'onglet \"Disponibilités\" pour définir vos jours et horaires de disponibilité. Vous pouvez bloquer des dates, définir des créneaux récurrents et gérer vos réservations entrantes. Les clients ne peuvent réserver que sur les créneaux que vous avez marqués comme disponibles.",
   },
   {
     category: 'kooker',
@@ -125,14 +126,20 @@ export default function FaqPage() {
   const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState('all');
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [faqItems, setFaqItems] = useState(FAQ_ITEMS);
 
   useEffect(() => {
     document.title = 'FAQ | Weekook';
+    api.get<{ faqs?: typeof FAQ_ITEMS }>('/admin/config/public').then((res) => {
+      if (res.success && res.data?.faqs && Array.isArray(res.data.faqs) && res.data.faqs.length > 0) {
+        setFaqItems(res.data.faqs);
+      }
+    }).catch(() => {});
   }, []);
 
   const filtered = activeCategory === 'all'
-    ? FAQ_ITEMS
-    : FAQ_ITEMS.filter((item) => item.category === activeCategory);
+    ? faqItems
+    : faqItems.filter((item) => item.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-[#f2f4fc]" style={{ fontFamily: 'Inter, sans-serif' }}>

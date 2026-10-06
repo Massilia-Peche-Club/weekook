@@ -8,6 +8,7 @@ import {
   UtensilsCrossed,
   MessageSquareQuote,
   Star,
+  HelpCircle,
   Settings,
   LogOut,
   ArrowLeft,
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/admin/services', label: 'Services', icon: UtensilsCrossed },
   { to: '/admin/temoignages', label: 'Témoignages', icon: MessageSquareQuote },
   { to: '/admin/avis', label: 'Avis', icon: Star },
+  { to: '/admin/faq', label: 'FAQ', icon: HelpCircle },
   { to: '/admin/configuration', label: 'Configuration', icon: Settings },
 ];
 
