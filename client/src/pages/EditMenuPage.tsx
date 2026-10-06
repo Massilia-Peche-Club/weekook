@@ -278,7 +278,7 @@ export default function EditMenuPage() {
         type: serviceTypes,
         priceInCents: Math.round(parseFloat(isKours ? koursPrice : kookPrice) * 100),
         extraGuestPriceInCents: isKours
-          ? Math.round(parseFloat(koursExtraGuestPrice) * 100)
+          ? (koursExtraGuestPrice ? Math.round(parseFloat(koursExtraGuestPrice) * 100) : undefined)
           : (kookExtraGuestPrice ? Math.round(parseFloat(kookExtraGuestPrice) * 100) : undefined),
         durationMinutes: parseInt(isKours ? koursDuration : kookDuration),
         maxGuests: parseInt(isKours ? koursMaxParticipants : kookMaxParticipants),

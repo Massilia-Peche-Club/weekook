@@ -111,7 +111,7 @@ export default function KookerCard({
         <div className="mt-auto flex items-center justify-between">
           <div className="flex items-center gap-[8px]">
             <span className="text-[14px] text-black leading-[1.5] tracking-[-0.28px]">
-              {price}&euro;/pers.
+              À partir de {price}&euro;
             </span>
           </div>
           <span className="text-[16px] font-medium text-black underline decoration-solid hover:text-[#c1a0fd] transition-colors tracking-[-0.32px]">

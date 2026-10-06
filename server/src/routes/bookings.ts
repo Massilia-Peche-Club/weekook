@@ -176,12 +176,22 @@ router.post(
       const userId = req.user!.userId;
       const { serviceId, date, startTime, guests, notes, ingredientsSource } = req.body;
 
-      // Validate date is not in the past
+      // Validate date/time is not in the past
       const bookingDate = new Date(date);
+      const now = new Date();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (bookingDate < today) {
         throw new AppError('La date de réservation est dépassée', 400);
+      }
+      // If today, check that the time slot hasn't already started
+      if (bookingDate.toDateString() === now.toDateString() && startTime) {
+        const [h, m] = (startTime as string).split(':').map(Number);
+        const slotStart = new Date(bookingDate);
+        slotStart.setHours(h, m, 0, 0);
+        if (slotStart <= now) {
+          throw new AppError('Ce créneau est déjà passé', 400);
+        }
       }
 
       // Get the service to calculate total price and find kooker
@@ -195,6 +205,7 @@ router.post(
           ingredientsPricePerGuestInCents: true,
           durationMinutes: true,
           kookerProfileId: true,
+          minGuests: true,
           maxGuests: true,
           active: true,
         },
@@ -206,6 +217,29 @@ router.post(
 
       if (!service.active) {
         throw new AppError('Ce service n\'est plus disponible', 400);
+      }
+
+      // Check kooker is active
+      const kookerActive = await prisma.kookerProfile.findUnique({
+        where: { id: service.kookerProfileId },
+        select: { active: true },
+      });
+      if (!kookerActive?.active) {
+        throw new AppError('Ce kooker n\'est plus disponible', 400);
+      }
+
+      // Block duplicate bookings (same user, service, date, startTime, not cancelled)
+      const duplicate = await prisma.booking.findFirst({
+        where: {
+          userId,
+          serviceId,
+          date: new Date(date),
+          startTime,
+          status: { notIn: ['cancelled'] },
+        },
+      });
+      if (duplicate) {
+        throw new AppError('Vous avez déjà une réservation pour ce créneau', 409);
       }
 
       if (guests > service.maxGuests) {
@@ -222,7 +256,7 @@ router.post(
 
       const kookerProfile = await prisma.kookerProfile.findUnique({
         where: { id: service.kookerProfileId },
-        select: { stripeAccountId: true, stripeOnboardingComplete: true },
+        select: { active: true, stripeAccountId: true, stripeOnboardingComplete: true },
       });
 
       if (!kookerProfile?.stripeAccountId || !kookerProfile.stripeOnboardingComplete) {
@@ -230,17 +264,11 @@ router.post(
       }
 
       // Auto-calculate total price
-      // COURS: base price covers 1-6 guests, then extra per guest beyond 6
-      // KOOK: price per guest
-      const serviceTypes: string[] = Array.isArray(service.type) ? service.type : JSON.parse(String(service.type) || '[]');
-      const isKours = serviceTypes.includes('COURS');
-      let totalPriceInCents: number;
-      if (isKours) {
-        const extraGuests = Math.max(0, guests - 6);
-        totalPriceInCents = service.priceInCents + extraGuests * (service.extraGuestPriceInCents ?? 0);
-      } else {
-        totalPriceInCents = service.priceInCents * guests;
-      }
+      // Both COURS and KOOK: flat rate (forfait) for up to minGuests or kookBaseGuests (6),
+      // then extraGuestPriceInCents per guest beyond that.
+      const baseGuests = (service as any).minGuests ?? 6;
+      const extraGuests = Math.max(0, guests - baseGuests);
+      let totalPriceInCents = service.priceInCents + extraGuests * (service.extraGuestPriceInCents ?? 0);
 
       // Surcoût ingrédients si le kooker fournit les courses
       if (ingredientsSource === 'kooker' && service.ingredientsPricePerGuestInCents) {
@@ -553,14 +581,12 @@ router.put(
         // Recalculate price: COURS uses base + extra beyond 6, KOOK uses per-guest
         const svc = await prisma.service.findUnique({
           where: { id: (booking.service as any).id },
-          select: { type: true, priceInCents: true, extraGuestPriceInCents: true },
+          select: { priceInCents: true, extraGuestPriceInCents: true, minGuests: true },
         });
-        const svcTypes: string[] = svc ? (Array.isArray(svc.type) ? svc.type : JSON.parse(String(svc.type) || '[]')) : [];
-        if (svcTypes.includes('COURS') && svc) {
-          const extraGuests = Math.max(0, guests - 6);
-          updateData.totalPriceInCents = svc.priceInCents + extraGuests * (svc.extraGuestPriceInCents ?? 0);
-        } else {
-          updateData.totalPriceInCents = (booking.service as any).priceInCents * guests;
+        if (svc) {
+          const base = svc.minGuests ?? 6;
+          const extra = Math.max(0, guests - base);
+          updateData.totalPriceInCents = svc.priceInCents + extra * (svc.extraGuestPriceInCents ?? 0);
         }
       }
       if (typeof notes !== 'undefined') {

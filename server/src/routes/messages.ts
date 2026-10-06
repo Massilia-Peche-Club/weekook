@@ -231,12 +231,12 @@ router.post(
         throw new AppError('Destinataire non trouve', 404);
       }
 
-      // Vérifier que le service existe
-      const service = await prisma.service.findUnique({
-        where: { id: serviceId },
-      });
-      if (!service) {
-        throw new AppError('Service introuvable', 404);
+      // Vérifier que le service existe (si fourni)
+      if (serviceId) {
+        const service = await prisma.service.findUnique({ where: { id: serviceId } });
+        if (!service) {
+          throw new AppError('Service introuvable', 404);
+        }
       }
 
       const message = await prisma.message.create({

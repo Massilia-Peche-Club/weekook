@@ -73,6 +73,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       throw new UnauthorizedError('Utilisateur non trouve');
     }
 
+    if (user.role === 'suspended') {
+      throw new UnauthorizedError('Votre compte a été suspendu. Contactez le support.');
+    }
+
     const userData = {
       userId: user.id,
       email: user.email,

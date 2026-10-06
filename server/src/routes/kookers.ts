@@ -233,7 +233,6 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
             id: true,
             firstName: true,
             lastName: true,
-            phone: true,
             avatar: true,
             createdAt: true,
           },
@@ -246,7 +245,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
           },
         },
         reviewsReceived: {
-          where: { type: 'user_to_kooker' },
+          where: { type: 'user_to_kooker', status: 'approved' },
           include: {
             user: {
               select: {
@@ -280,11 +279,11 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       },
     });
 
-    if (!kooker) {
+    if (!kooker || !kooker.active) {
       throw new NotFoundError('Profil kooker non trouve');
     }
 
-    const { bookingsReceived, ...kookerData } = kooker as any;
+    const { bookingsReceived, stripeAccountId, stripeOnboardingComplete, address, userId: _uid, ...kookerData } = kooker as any;
     const confirmedSlots = (bookingsReceived || []).map((b: any) => {
       const rawDate: Date = b.date;
       const dateStr = rawDate instanceof Date

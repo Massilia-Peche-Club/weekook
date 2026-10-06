@@ -197,6 +197,8 @@ router.post(
         ingredientsDefaultSource,
         equipmentKooker,
         extraGuestPriceInCents,
+        koursDifficulty,
+        koursLocation,
         menuItems,
       } = req.body;
 
@@ -222,6 +224,8 @@ router.post(
           ingredientsDefaultSource: ingredientsDefaultSource ?? 'client',
           equipmentKooker: equipmentKooker || null,
           extraGuestPriceInCents: extraGuestPriceInCents ?? null,
+          koursDifficulty: koursDifficulty ?? null,
+          koursLocation: koursLocation ?? null,
           menuItems: menuItems
             ? {
                 create: menuItems.map(

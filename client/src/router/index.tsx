@@ -34,6 +34,7 @@ const AdminBookingsPage = lazy(() => import('@/pages/admin/AdminBookingsPage').t
 const AdminTestimonialsPage = lazy(() => import('@/pages/admin/AdminTestimonialsPage').then(m => ({ default: m.default })));
 const AdminConfigPage = lazy(() => import('@/pages/admin/AdminConfigPage').then(m => ({ default: m.default })));
 const AdminServicesPage = lazy(() => import('@/pages/admin/AdminServicesPage').then(m => ({ default: m.default })));
+const AdminReviewsPage = lazy(() => import('@/pages/admin/AdminReviewsPage').then(m => ({ default: m.default })));
 
 function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -96,6 +97,7 @@ export function AppRouter() {
           <Route path="reservations" element={<AdminBookingsPage />} />
           <Route path="services" element={<AdminServicesPage />} />
           <Route path="temoignages" element={<AdminTestimonialsPage />} />
+          <Route path="avis" element={<AdminReviewsPage />} />
           <Route path="configuration" element={<AdminConfigPage />} />
         </Route>
       </Routes>

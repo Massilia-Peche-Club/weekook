@@ -209,6 +209,48 @@ router.put('/kookers/:id', async (req: Request, res: Response, next: NextFunctio
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
+// GET /reviews — list all reviews (optional ?status=pending|approved|rejected)
+router.get('/reviews', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status, page = '1', limit = '20' } = req.query as Record<string, string>;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: Record<string, unknown> = { type: 'user_to_kooker' };
+    if (status) where.status = status;
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+          kookerProfile: {
+            select: {
+              id: true,
+              user: { select: { id: true, firstName: true, lastName: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.review.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        reviews,
+        pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /reviews/kooker/:id
 router.get('/reviews/kooker/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -434,6 +476,27 @@ router.put('/config/:key', async (req: Request, res: Response, next: NextFunctio
   try {
     const { key } = req.params;
     const { value } = req.body;
+
+    // Validate numeric config values
+    const numericKeys = ['platformCommission', 'commissionKours', 'commissionKook'];
+    const positiveIntKeys = ['kookBaseGuests'];
+
+    if (numericKeys.includes(key)) {
+      if (typeof value !== 'number' || isNaN(value)) {
+        res.status(400).json({ success: false, error: `${key} doit être un nombre` });
+        return;
+      }
+      if (value < 0 || value > 99) {
+        res.status(400).json({ success: false, error: `${key} doit être entre 0 et 99` });
+        return;
+      }
+    }
+    if (positiveIntKeys.includes(key)) {
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+        res.status(400).json({ success: false, error: `${key} doit être un entier ≥ 1` });
+        return;
+      }
+    }
 
     const config = await prisma.config.upsert({
       where: { key },

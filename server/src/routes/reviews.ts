@@ -84,30 +84,23 @@ router.post(
         throw new AppError('Vous ne pouvez pas laisser un avis sur votre propre profil', 400);
       }
 
-      // If bookingId provided, check booking is completed and belongs to user
-      if (bookingId) {
-        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-        if (!booking || booking.userId !== userId) {
-          throw new AppError('Réservation invalide', 400);
-        }
-        if (booking.status !== 'completed') {
-          throw new AppError('La prestation doit être confirmée avant de laisser un avis', 400);
-        }
-        // Check for existing review on this booking
-        const existingOnBooking = await prisma.review.findFirst({
-          where: { bookingId, userId, type: 'user_to_kooker' },
-        });
-        if (existingOnBooking) {
-          throw new AppError('Vous avez déjà laissé un avis pour cette réservation', 409);
-        }
-      } else {
-        // Check for existing review (legacy: one per user per kooker)
-        const existingReview = await prisma.review.findFirst({
-          where: { userId, kookerProfileId, type: 'user_to_kooker' },
-        });
-        if (existingReview) {
-          throw new AppError('Vous avez deja laisse un avis pour ce kooker', 409);
-        }
+      // Verify booking is completed and belongs to user
+      const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+      if (!booking || booking.userId !== userId) {
+        throw new AppError('Réservation invalide', 400);
+      }
+      if (booking.status !== 'completed') {
+        throw new AppError('La prestation doit être terminée avant de laisser un avis', 400);
+      }
+      if (booking.kookerProfileId !== kookerProfileId) {
+        throw new AppError('Cette réservation ne correspond pas au kooker indiqué', 400);
+      }
+      // Check for existing review on this booking
+      const existingOnBooking = await prisma.review.findFirst({
+        where: { bookingId, userId, type: 'user_to_kooker' },
+      });
+      if (existingOnBooking) {
+        throw new AppError('Vous avez déjà laissé un avis pour cette réservation', 409);
       }
 
       // Create the review in pending state (requires admin approval)

@@ -13,13 +13,13 @@ const ingredientItemSchema = z.object({
 });
 
 export const createServiceSchema = z.object({
-  title: z.string().min(1, 'Le titre est requis'),
+  title: z.string().trim().min(1, 'Le titre est requis'),
   description: z.string().optional(),
   type: z.array(z.string()).min(1, 'Au moins un type est requis'),
   priceInCents: z.number().min(0, 'Le prix doit etre positif'),
   durationMinutes: z.number().min(1, 'La duree doit etre au moins 1 minute'),
-  minGuests: z.number().optional(),
-  maxGuests: z.number().optional().default(1),
+  minGuests: z.number().int().min(1).optional(),
+  maxGuests: z.number().int().min(1, 'Le nombre de convives doit être au moins 1').optional().default(1),
   allergens: z.array(z.string()).optional(),
   constraints: z.array(z.string()).optional(),
   specialty: z.array(z.string()).optional(),
@@ -36,7 +36,10 @@ export const createServiceSchema = z.object({
   koursLocation: z.string().optional(),
   menuItems: z.array(menuItemSchema).optional(),
   images: z.array(z.string()).optional(),
-});
+}).refine(
+  (d) => d.minGuests == null || d.maxGuests == null || d.minGuests <= d.maxGuests,
+  { message: 'Le nombre minimum de convives ne peut pas dépasser le maximum', path: ['minGuests'] }
+);
 
 export const updateServiceSchema = z.object({
   title: z.string().min(1).optional(),

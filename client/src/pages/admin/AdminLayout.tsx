@@ -7,6 +7,7 @@ import {
   CalendarDays,
   UtensilsCrossed,
   MessageSquareQuote,
+  Star,
   Settings,
   LogOut,
   ArrowLeft,
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/admin/reservations', label: 'Réservations', icon: CalendarDays },
   { to: '/admin/services', label: 'Services', icon: UtensilsCrossed },
   { to: '/admin/temoignages', label: 'Témoignages', icon: MessageSquareQuote },
+  { to: '/admin/avis', label: 'Avis', icon: Star },
   { to: '/admin/configuration', label: 'Configuration', icon: Settings },
 ];
 
