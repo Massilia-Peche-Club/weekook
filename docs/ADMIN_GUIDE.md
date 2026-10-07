@@ -157,24 +157,38 @@ Vue en lecture seule de toutes les offres créées sur la plateforme.
 
 ## Modération des avis
 
-La page `/admin/avis` (AdminReviewsPage) centralise tous les avis soumis par les clients. Les avis sont créés avec le statut `pending` et ne sont **jamais visibles** sur les profils publics tant qu'un admin ne les a pas approuvés.
+La page `/admin/avis` (AdminReviewsPage) centralise **tous les avis** : avis clients sur les kookers (`Client → Kooker`) et avis kookers sur leurs clients (`Kooker → Client`). Les avis sont créés avec le statut `pending` et ne sont **jamais visibles** tant qu'un admin ne les a pas approuvés.
 
 ### Filtres disponibles
 
-- **Tous** — tous les avis quelle que soit leur statut
-- **En attente** (`pending`) — avis à traiter
-- **Approuvés** (`approved`) — avis visibles sur les profils
+**Par statut :**
+- **En attente** (`pending`) — avis à traiter en priorité
+- **Approuvés** (`approved`) — avis visibles
 - **Rejetés** (`rejected`) — avis refusés
+
+**Par type :**
+- **Tous** — les deux types confondus
+- **Client → Kooker** (`user_to_kooker`) — badge violet
+- **Kooker → Client** (`kooker_to_user`) — badge orange
+
+### Lecture d'un avis
+
+Chaque carte affiche :
+- La direction : **Prénom Auteur → Prénom Destinataire** (correctement orientée selon le type)
+- Le badge de type coloré
+- La note en étoiles
+- Le commentaire (si renseigné)
+- La date et la référence de réservation (`Résa #00042`)
 
 ### Actions disponibles par avis
 
-| Action | Bouton | Effet |
-|--------|--------|-------|
-| Approuver | Bouton vert "Approuver" | L'avis devient visible sur le profil public du kooker ; la note moyenne du kooker est recalculée |
-| Rejeter | Bouton orange "Rejeter" | L'avis est masqué (statut `rejected`) ; la note n'est pas modifiée |
-| Supprimer | Icône corbeille | Suppression définitive ; si l'avis était `approved`, la note est recalculée |
+| Action | Bouton | Effet sur `Client → Kooker` | Effet sur `Kooker → Client` |
+|--------|--------|-----------------------------|-----------------------------|
+| Approuver | Bouton vert | Avis visible sur le profil ; **note kooker recalculée** | Avis approuvé ; note kooker inchangée |
+| Rejeter | Bouton rouge | Avis supprimé ; note recalculée si était approuvé | Avis supprimé ; note inchangée |
+| Supprimer | Icône corbeille | Suppression définitive ; note recalculée si était approuvé | Suppression définitive ; note inchangée |
 
-> **Note :** Approuver un avis déclenche le recalcul de la note moyenne du kooker en ne tenant compte que des avis `approved`. Un kooker sans avis approuvé a une note de 0.
+> **Note :** Seuls les avis `Client → Kooker` (`user_to_kooker`) approuvés entrent dans le calcul de la note moyenne affichée sur le profil public. Les avis `Kooker → Client` sont un outil de confiance interne — ils ne modifient pas la note du kooker.
 
 ---
 

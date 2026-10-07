@@ -552,7 +552,11 @@ Chaque action de paiement crée un enregistrement d'audit :
 | `rating` | number | Oui | Entre 1 et 5 |
 | `comment` | string | Non | |
 
-**Prérequis :** Le user doit avoir déjà laissé un avis `user_to_kooker` sur ce booking. L'avis kooker → user ne peut être donné qu'après.
+**Règles :**
+- Le kooker peut noter son client **indépendamment** — aucun prérequis sur l'avis du client
+- Statut initial : `pending` (modération admin requise, comme les avis client)
+- Un seul avis par booking (409 si doublon)
+- N'affecte **pas** la note moyenne du kooker (uniquement les avis `user_to_kooker` comptent)
 
 ### 9.3 Consultation des avis
 

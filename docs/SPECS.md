@@ -811,8 +811,10 @@ model PageViewLog {
 - **Logic**:
   - Verifies booking belongs to this kooker
   - Verifies booking is completed
-  - Requires user to have already left review on booking
+  - Kooker can rate independently — no prerequisite on client's review
   - Checks kooker hasn't already reviewed this booking
+  - Creates review with status = "pending" (admin moderation required)
+  - Does NOT affect kooker's rating/reviewCount
 - **Returns**: Review object
 - **Status Codes**: 201, 400, 404, 409
 
@@ -906,17 +908,23 @@ model PageViewLog {
 
 ---
 
-### REVIEWS ROUTES - ADMIN (`/api/v1/admin/reviews/:id/status`)
+### REVIEWS ROUTES - ADMIN (`/api/v1/admin/reviews`)
+
+#### GET `/reviews` (Protected, Admin Required)
+- **Query params**: `?status=pending|approved|rejected`, `?type=user_to_kooker|kooker_to_user` (optional), `page`, `limit`
+- **Returns**: Paginated reviews of both types with user, kookerProfile, and targetUser details
+- **Default**: all types returned if `?type` is omitted
 
 #### PUT `/reviews/:id/status` (Protected, Admin Required)
 - **Body**: `{ "status": "approved" | "rejected" }`
 - **Logic**:
-  - **If approved**: Recalculates kooker rating from all approved user_to_kooker reviews
-  - **If rejected**: Deletes review
+  - **If approved**: status → `approved` ; kooker rating recalculated **only for `user_to_kooker`** reviews
+  - **If rejected**: review deleted ; kooker rating recalculated **only for `user_to_kooker`** reviews
+  - `kooker_to_user` reviews never affect kooker's rating/reviewCount
 - **Status Codes**: 200, 400, 404
 
 #### DELETE `/reviews/:id` (Protected, Admin Required)
-- **Logic**: Deletes and recalculates kooker rating
+- **Logic**: Deletes review ; recalculates kooker rating **only if `user_to_kooker`**
 - **Status Codes**: 200, 404
 
 ---

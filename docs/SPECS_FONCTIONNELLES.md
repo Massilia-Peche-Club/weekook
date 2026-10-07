@@ -642,30 +642,38 @@ Chargées via `GET /kookers/dashboard/stats` :
 ### 14.2 Avis kooker → client
 
 - Uniquement après une réservation `completed`
-- Le client doit avoir d'abord laissé un avis → sinon erreur `400`
+- Le kooker peut noter son client **indépendamment** — aucun prérequis sur l'avis du client
 - Un seul avis par réservation → erreur `409`
+- Statut initial : `pending` (modération admin requise, comme les avis client)
+- Endpoint : `POST /reviews/kooker-to-user` avec `{ bookingId, rating, comment }`
 
 ### 14.3 Modération admin
 
+La page `/admin/avis` affiche les deux types d'avis (`user_to_kooker` et `kooker_to_user`).
+
+**Filtres disponibles :**
+- Par statut : En attente / Approuvé / Rejeté
+- Par type : Tous / Client → Kooker / Kooker → Client
+
 **Approuver un avis :**
 - `PUT /admin/reviews/:id/status` avec `{ status: 'approved' }`
-- L'avis devient visible sur le profil public
-- La note moyenne du kooker est recalculée (moyenne de tous les avis `approved`)
-- Le kooker reçoit une notification
+- L'avis devient visible
+- **Pour `user_to_kooker` uniquement** : la note moyenne du kooker est recalculée
+- Les avis `kooker_to_user` n'affectent pas la note du kooker
 
 **Rejeter un avis :**
 - `PUT /admin/reviews/:id/status` avec `{ status: 'rejected' }`
 - L'avis est supprimé de la base
-- La note moyenne n'est pas modifiée
+- La note du kooker est recalculée uniquement si c'était un avis `user_to_kooker` approuvé
 
-**Supprimer un avis approuvé :**
+**Supprimer un avis :**
 - `DELETE /admin/reviews/:id`
-- La note moyenne est recalculée
+- La note est recalculée uniquement si c'était un avis `user_to_kooker`
 
-**Formule de recalcul :**
+**Formule de recalcul (avis user_to_kooker uniquement) :**
 ```
-newRating = Math.round((moyenne des ratings des avis approved) × 10) / 10
-reviewCount = nombre d'avis approved
+newRating = Math.round((moyenne des ratings des avis user_to_kooker approved) × 10) / 10
+reviewCount = nombre d'avis user_to_kooker approved
 ```
 
 ---
