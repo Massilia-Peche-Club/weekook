@@ -23,16 +23,18 @@
 
 ## Navigation
 
-La sidebar gauche (240 px) donne accès aux 7 sections :
+La sidebar gauche (240 px) donne accès aux 9 sections :
 
 | Icône | Section | URL |
 |-------|---------|-----|
 | Tableau de bord | Vue d'ensemble + stats | `/admin` |
 | Utilisateurs | Gestion des comptes | `/admin/utilisateurs` |
 | Kookers | Gestion des profils kooker | `/admin/kookers` |
+| Avis | Modération des avis clients | `/admin/avis` |
 | Réservations | Historique toutes réservations | `/admin/reservations` |
 | Services | Catalogue des offres | `/admin/services` |
 | Témoignages | Modération | `/admin/temoignages` |
+| FAQ | Gestion des questions/réponses | `/admin/faq` |
 | Configuration | Listes de valeurs | `/admin/configuration` |
 
 ---
@@ -153,6 +155,29 @@ Vue en lecture seule de toutes les offres créées sur la plateforme.
 
 ---
 
+## Modération des avis
+
+La page `/admin/avis` (AdminReviewsPage) centralise tous les avis soumis par les clients. Les avis sont créés avec le statut `pending` et ne sont **jamais visibles** sur les profils publics tant qu'un admin ne les a pas approuvés.
+
+### Filtres disponibles
+
+- **Tous** — tous les avis quelle que soit leur statut
+- **En attente** (`pending`) — avis à traiter
+- **Approuvés** (`approved`) — avis visibles sur les profils
+- **Rejetés** (`rejected`) — avis refusés
+
+### Actions disponibles par avis
+
+| Action | Bouton | Effet |
+|--------|--------|-------|
+| Approuver | Bouton vert "Approuver" | L'avis devient visible sur le profil public du kooker ; la note moyenne du kooker est recalculée |
+| Rejeter | Bouton orange "Rejeter" | L'avis est masqué (statut `rejected`) ; la note n'est pas modifiée |
+| Supprimer | Icône corbeille | Suppression définitive ; si l'avis était `approved`, la note est recalculée |
+
+> **Note :** Approuver un avis déclenche le recalcul de la note moyenne du kooker en ne tenant compte que des avis `approved`. Un kooker sans avis approuvé a une note de 0.
+
+---
+
 ## Témoignages
 
 Liste tous les témoignages, qu'ils soient en avant ou non.
@@ -195,6 +220,35 @@ Permet de modifier les listes de valeurs utilisées dans l'application **sans re
 2. Cliquer sur **Sauvegarder**
 
 > Les modifications ne sont envoyées en base qu'après avoir cliqué sur **Sauvegarder**. Tant que le bouton est visible, les changements sont locaux et peuvent être annulés en rechargeant la page.
+
+---
+
+## Gestion de la FAQ
+
+La page `/admin/faq` (AdminFaqPage) permet de gérer entièrement les questions et réponses affichées sur la page FAQ publique (`/faq`). Aucune modification de code n'est nécessaire pour ajouter, modifier, supprimer ou réordonner une entrée FAQ.
+
+### Actions disponibles
+
+**Créer une entrée**
+1. Cliquer sur **+ Nouvelle question**
+2. Saisir la question et la réponse
+3. Cliquer sur **Sauvegarder**
+
+**Modifier une entrée**
+1. Cliquer sur l'icône crayon à côté de l'entrée
+2. Modifier la question et/ou la réponse
+3. Cliquer sur **Sauvegarder**
+
+**Supprimer une entrée**
+1. Cliquer sur l'icône corbeille à côté de l'entrée
+2. Confirmer la suppression dans la boîte de dialogue
+3. **Irréversible**
+
+**Réordonner les entrées**
+- Glisser-déposer les entrées pour modifier leur ordre d'affichage
+- L'ordre est sauvegardé automatiquement après chaque déplacement
+
+> Les modifications sont immédiatement visibles sur la page FAQ publique.
 
 ---
 

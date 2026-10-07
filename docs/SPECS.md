@@ -41,6 +41,8 @@ datasource db {
 model User {
   id              Int       @id @default(autoincrement())
   email           String    @unique
+  pendingEmail    String?   @map("pending_email")      // Email en attente de confirmation
+  emailVerified   Boolean   @default(true) @map("email_verified")  // false après inscription jusqu'à vérification
   password        String
   firstName       String    @map("first_name")
   lastName        String    @map("last_name")
@@ -374,6 +376,21 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+// Email verification and email change tokens
+model EmailToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  token     String   @unique
+  type      String   // "verify" | "change_email"
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_tokens")
+}
+
 // Error logs
 model ErrorLog {
   id         Int      @id @default(autoincrement())
@@ -420,6 +437,7 @@ model PageViewLog {
 | **Message** | Messaging | senderId, receiverId, serviceId, content, read |
 | **Testimonial** | Homepage testimonials | kookerProfileId, authorName, content, rating, featured |
 | **PasswordResetToken** | Password recovery | userId, token, expiresAt, used |
+| **EmailToken** | Email verification & change confirmation | userId, token (unique), type ("verify"\|"change_email"), expiresAt, used |
 | **Config** | System configuration | key, value (JSON) |
 | **ErrorLog** | Server error tracking | message, stack, route, statusCode, userId |
 | **PageViewLog** | Performance tracking | page, loadTimeMs, userId |
@@ -437,7 +455,7 @@ model PageViewLog {
   ```json
   {
     "email": "user@example.com",
-    "password": "string (min 6 chars)",
+    "password": "string (min 8 chars)",
     "firstName": "string",
     "lastName": "string"
   }
@@ -476,9 +494,31 @@ model PageViewLog {
 
 #### POST `/reset-password`
 - **Validation**: `resetPasswordSchema`
-- **Body**: `{ "token": "string", "password": "string (min 6)" }`
+- **Body**: `{ "token": "string", "password": "string (min 8)" }`
 - **Logic**: Verifies token, hashes password with bcrypt (10 rounds), marks token as used
 - **Status Codes**: 200, 400 (invalid/expired token)
+
+#### GET `/verify-email` (Email verification after registration)
+- **Query**: `?token=<string>`
+- **Logic**: Validates `EmailToken` (type="verify", not used, not expired) → sets `emailVerified=true`, marks token as used, issues JWT cookie
+- **Redirects**: To `/` or `redirect` param on success
+- **Status Codes**: 302 (redirect), 400 (invalid/expired token)
+
+#### POST `/resend-verification` (Resend verification email)
+- **Rate Limit**: 5 req / 15 min
+- **Body**: `{ "email": "string" }` (or taken from session if authenticated)
+- **Logic**: If account exists and `emailVerified=false` → generates new `EmailToken` (type="verify"), sends email
+- **Returns**: Always `{ success: true }` (never reveals if email exists)
+- **Status Codes**: 200
+
+---
+
+### USERS ROUTES — EMAIL CHANGE
+
+#### GET `/api/v1/users/confirm-email-change`
+- **Query**: `?token=<string>`
+- **Logic**: Validates `EmailToken` (type="change_email", not used, not expired) → sets `user.email = user.pendingEmail`, clears `pendingEmail`, marks token as used, issues new JWT cookie
+- **Status Codes**: 302 (redirect to profile), 400 (invalid/expired token)
 
 ---
 
@@ -550,14 +590,14 @@ model PageViewLog {
 - **Validation**: `updateKookerProfileSchema`
 - **Body**: Any subset of: bio, specialties, type, city, experience, address, isCompany
 - **Returns**: Updated KookerProfile
-- **Status Codes**: 200, 401 (not kooker), 400 (validation)
+- **Status Codes**: 200, 403 (not kooker), 400 (validation)
 
 ---
 
 ### SERVICES ROUTES (`/api/v1/services`)
 
 #### GET `/search` (Search services — public)
-- **Params**: `q`, `type`, `specialty`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `page` (défaut 1), `limit` (défaut 12)
+- **Params**: `q`, `type`, `specialty`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `page` (défaut 1), `limit` (défaut 12)
 - **Filtres**:
   - Uniquement services `active: true` appartenant à un kooker `active: true`
   - `q` : recherche texte sur titre, description, nom kooker, spécialités
@@ -567,6 +607,7 @@ model PageViewLog {
   - `minPrice` / `maxPrice` : sur `priceInCents` (euros → centimes)
   - `difficulty` : sur `koursDifficulty` (COURS uniquement)
   - `featured` : `kookerProfile.featured = true`
+  - `date` (YYYY-MM-DD) : filtre disponibilité — retourne uniquement les services dont le kooker a une disponibilité ce jour-là
 - **Include**: images (isCardImage prioritaire), kookerProfile (id, city, rating, reviewCount, featured, verified, user)
 - **Tri**: `kookerProfile.featured DESC` puis `kookerProfile.rating DESC`
 - **Réponse**: `{ success, data: { services[], pagination: { page, limit, total, totalPages } } }`
@@ -614,7 +655,7 @@ model PageViewLog {
   ```
 - **Creates**: Service + ServiceImages + MenuItems
 - **Returns**: Service with images and menuItems
-- **Status Codes**: 201, 401, 400 (validation)
+- **Status Codes**: 201, 403 (not kooker), 400 (validation)
 
 #### PUT `/card-image/:imageId` (Protected, Kooker Required)
 - **Logic**: Sets one image as card image (clears others for this kooker)
@@ -1027,7 +1068,7 @@ model PageViewLog {
 ```typescript
 registerSchema = z.object({
   email: z.string().email('Email invalide'),
-  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caracteres'),
+  password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caracteres'),
   firstName: z.string().min(1, 'Le prenom est requis'),
   lastName: z.string().min(1, 'Le nom est requis'),
 });
@@ -1043,7 +1084,7 @@ forgotPasswordSchema = z.object({
 
 resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token requis'),
-  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
+  password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
 });
 ```
 
@@ -1245,11 +1286,13 @@ async function authenticate(req, res, next):
 
 function requireKooker(req, res, next):
   - Checks req.user.kookerProfileId exists
-  - Returns 401 "Acces reserve aux kookers"
+  - Returns 403 "Acces reserve aux kookers" (authenticated but insufficient role)
 
 function requireAdmin(req, res, next):
   - Checks req.user.isAdmin === true
-  - Returns 401 "Acces reserve aux administrateurs"
+  - Returns 403 "Acces reserve aux administrateurs" (authenticated but insufficient role)
+
+// Note: 401 = not authenticated (no/invalid JWT), 403 = authenticated but wrong role
 
 function invalidateAuthCache(userId):
   - Called after user profile/role changes
@@ -1436,6 +1479,9 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 | `/confiance` | TrustPage | Public | Trust & guarantee page |
 | `/faq` | FaqPage | Public | FAQ page |
 | `/connexion` | LoginPage | Public | Login/Register split-screen |
+| `/verifier-email` | VerifyEmailPage | Public | Email verification after registration |
+| `/confirmer-email` | ConfirmEmailChangePage | Public | Email change confirmation |
+| `/contact` | ContactPage | Public | Contact form |
 | `/reinitialiser-mot-de-passe` | ResetPasswordPage | Public | Password reset form |
 | `/tableau-de-bord` | UserDashboardPage | Protected | User bookings, favorites |
 | `/devenir-kooker` | BecomeKookerPage | Protected | Form to become kooker |
@@ -1452,6 +1498,8 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 | `/admin/reservations` | AdminBookingsPage | Admin | Booking management |
 | `/admin/services` | AdminServicesPage | Admin | Service management |
 | `/admin/temoignages` | AdminTestimonialsPage | Admin | Testimonials management |
+| `/admin/avis` | AdminReviewsPage | Admin | Review moderation (pending/approved/rejected) |
+| `/admin/faq` | AdminFaqPage | Admin | FAQ management |
 | `/admin/configuration` | AdminConfigPage | Admin | System config |
 | `*` | NotFoundPage | Public | 404 page |
 

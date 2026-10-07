@@ -56,13 +56,17 @@
 | Champ | Règle |
 |-------|-------|
 | `email` | Format email valide, unique en base (409 si doublon) |
-| `password` | Minimum 6 caractères, hashé avec bcrypt 10 rounds |
+| `password` | Minimum 8 caractères, hashé avec bcrypt 10 rounds |
 | `firstName` | Requis, minimum 1 caractère |
 | `lastName` | Requis, minimum 1 caractère |
 
 - Rate limiting : 50 requêtes / 15 min par IP
 - Rôle initial : `user`
-- Un JWT est généré et stocké dans un cookie httpOnly immédiatement
+- Le compte est créé avec `emailVerified = false`
+- Un email de vérification est envoyé immédiatement à l'adresse saisie (lien valable 24 h)
+- **Pas de JWT émis à l'inscription** : l'utilisateur doit cliquer le lien avant de pouvoir se connecter
+- Cliquer le lien → `GET /auth/verify-email?token=` → `emailVerified` → `true`, JWT émis, connexion effective
+- `POST /auth/resend-verification` permet de renvoyer le lien (limité à 5 req / 15 min)
 
 ### 2.2 Connexion (POST /api/v1/auth/login)
 
@@ -124,7 +128,12 @@ Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.jso
 | `phone` | string | Optionnel |
 | `email` | string | Optionnel, format email valide, unicité vérifiée |
 
-- Si l'email change, un nouveau JWT est généré
+- Si l'email change : flux de confirmation par email (`pendingEmail`)
+  - Le nouvel email est stocké dans `pendingEmail` (champ temporaire)
+  - Un email de confirmation est envoyé à la **nouvelle** adresse
+  - L'**ancien** email reste actif jusqu'à confirmation du lien
+  - Cliquer le lien → `GET /users/confirm-email-change?token=` → `email` ← `pendingEmail`, `pendingEmail` effacé, nouveau JWT émis
+  - Aucun JWT n'est réémis immédiatement lors de la demande de changement
 
 ### 3.2 Modifier l'avatar (PUT /api/v1/users/avatar)
 
@@ -284,6 +293,7 @@ L'interface de recherche est centrée sur les **prestations** (et non plus les k
 | `minPrice` / `maxPrice` | number | Sur `priceInCents` du service (euros → centimes) |
 | `difficulty` | string | `koursDifficulty` (COURS uniquement) |
 | `featured` | boolean | `kookerProfile.featured = true` |
+| `date` | string (YYYY-MM-DD) | Filtre sur la disponibilité — retourne uniquement les kookers ayant une disponibilité ce jour-là |
 | `page` | number | Défaut 1 |
 | `limit` | number | Défaut 12 |
 
@@ -324,9 +334,12 @@ Endpoint conservé pour les recherches internes (dashboard admin, etc.).
 **Données retournées :**
 - Profil complet du kooker + infos utilisateur
 - Services actifs uniquement (avec images et menuItems triés par `sortOrder`)
-- Avis (`user_to_kooker` uniquement), triés par date DESC, avec infos du reviewer
+- Avis (`user_to_kooker` uniquement, statut `approved`), triés par date DESC, avec infos du reviewer
 - Disponibilités futures (date ≥ aujourd'hui)
 - `confirmedSlots` : créneaux réservés (pending/confirmed/completed, date ≥ aujourd'hui) → `[{ date: YYYY-MM-DD, startTime: HH:MM, status }]`
+
+**Règle de visibilité :**
+- Retourne `404` si `kookerProfile.active = false` — les kookers inactifs ne sont pas accessibles publiquement
 
 ---
 
@@ -519,16 +532,17 @@ Chaque action de paiement crée un enregistrement d'audit :
 | Champ | Type | Requis | Règle |
 |-------|------|--------|-------|
 | `kookerProfileId` | number | Oui | Le kooker doit exister |
-| `bookingId` | number | Non | Si fourni : booking doit appartenir au user et être `completed` |
+| `bookingId` | number | **Oui** | Booking doit appartenir au user et être `completed` |
 | `rating` | number | Oui | Entre 1 et 5 |
 | `comment` | string | Non | |
 
 **Règles :**
 - Impossible de s'auto-évaluer
 - Un seul avis par booking (409 si doublon)
-- Sans `bookingId` : un seul avis par user par kooker (legacy)
-- Après création : recalcul automatique de `rating` et `reviewCount` du kooker
-  - `rating = Math.round(moyenne × 10) / 10` (1 décimale)
+- Les avis ont un champ `status` : `pending` / `approved` / `rejected`
+- Après création : l'avis est en statut `pending` — **non visible publiquement** avant validation admin
+- La note moyenne du kooker (`rating` et `reviewCount`) **n'est recalculée que lors de l'approbation** d'un avis par un admin
+  - `rating = Math.round(moyenne × 10) / 10` (1 décimale, tous les avis `approved`)
 
 ### 9.2 Avis kooker → user (POST /api/v1/reviews/kooker-to-user)
 
@@ -854,6 +868,9 @@ APRÈS COMPLETION :
 | ServiceDetailPage | `/prestation/:id` | Détail prestation : galerie, description, prix, ingrédients, encart kooker, CTA réserver |
 | KookerProfilePage | `/kooker/:id` | Profil complet, services en accordéon, galerie d'images, avis, planning, réservation |
 | LoginPage | `/connexion` | Split-screen login/register |
+| VerifyEmailPage | `/verifier-email` | Page de vérification d'email après inscription |
+| ConfirmEmailChangePage | `/confirmer-email` | Page de confirmation de changement d'email |
+| ContactPage | `/contact` | Formulaire de contact |
 | BookingPage | `/reservation` | Formulaire de réservation — params `?service={id}&kooker={kookerProfileId}` |
 | BookingDetailPage | `/reservation/:id` | Détail réservation, actions contextuelles, modales d'avis/témoignage |
 | PricingPage | `/tarification` | Tarification plateforme |
@@ -890,6 +907,7 @@ APRÈS COMPLETION :
 | AdminBookingsPage | `/admin/bookings` | Suivi des réservations |
 | AdminServicesPage | `/admin/services` | Catalogue des services |
 | AdminTestimonialsPage | `/admin/testimonials` | Gestion des témoignages |
+| AdminReviewsPage | `/admin/avis` | Modération des avis (pending/approved/rejected) |
 | AdminConfigPage | `/admin/config` | Configuration dynamique (spécialités, villes, allergènes, commission) |
 
 ---

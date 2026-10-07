@@ -83,8 +83,12 @@
 - 12+ caractères → vert plein
 
 **Après inscription :**
-- Connexion automatique (JWT émis, cookie httpOnly posé)
-- Redirection vers l'URL du paramètre `redirect` si présent, sinon vers `/`
+- Le compte est créé avec `emailVerified = false`
+- Un email de vérification est envoyé à l'adresse saisie (lien valable 24 heures)
+- L'utilisateur est redirigé vers une page d'attente lui demandant de consulter ses emails
+- **Pas de connexion automatique** tant que l'email n'est pas vérifié
+- Un bouton "Renvoyer l'email de vérification" est disponible en cas de non-réception
+- Cliquer sur le lien → `GET /auth/verify-email?token=...` → JWT émis, `emailVerified` → `true`, redirection selon rôle
 
 ---
 
@@ -94,6 +98,7 @@
 
 **Règles métier :**
 - Si email inconnu ou mot de passe incorrect → erreur `401` : *"Email ou mot de passe incorrect."* (message générique pour éviter l'énumération)
+- Si `emailVerified = false` → erreur `403` avec code `email_not_verified` : l'utilisateur est redirigé vers l'écran de vérification email avec un bouton "Renvoyer l'email de vérification" (`POST /auth/resend-verification`, limité à 5 req / 15 min)
 - JWT stocké dans cookie httpOnly, sécurisé, SameSite strict
 - Durée de session : 2 heures (inactivité)
 
@@ -109,6 +114,19 @@
 
 - Supprime le cookie JWT
 - Redirige vers `/`
+
+---
+
+### 2.3b Modification d'email
+
+**Flux :**
+1. L'utilisateur saisit un nouvel email dans ses paramètres de profil
+2. L'ancien email reste actif et utilisable jusqu'à confirmation
+3. Le nouvel email est stocké temporairement dans le champ `pendingEmail` de l'utilisateur
+4. Un email de confirmation est envoyé à la **nouvelle** adresse (lien valable 24 heures)
+5. Cliquer sur le lien → `GET /users/confirm-email-change?token=...` → le champ `email` est mis à jour avec `pendingEmail`, `pendingEmail` est effacé, un nouveau JWT est émis
+6. Si le lien expire, l'utilisateur peut relancer la demande depuis ses paramètres
+7. Tant que le changement n'est pas confirmé, aucune mise à jour du JWT n'est effectuée
 
 ---
 
@@ -326,10 +344,18 @@ Le forfait de base couvre `minGuests` convives (défini par le kooker à la cré
 2. Le montant est autorisé (pré-réservé) sur la carte du client
 3. Le paiement n'est débité qu'à la confirmation par le kooker
 
-### 6.7 Étape 5 — Statuts et cycle de vie
+### 6.7 Étape 5 — Confirmation de la demande
+
+**Écran de succès :** *"Demande envoyée !"* (et non "Réservation confirmée !")
+
+- Le statut initial de la réservation est `pending` — la prestation n'est pas encore confirmée
+- Le kooker doit accepter la demande pour que la réservation soit effective
+- L'utilisateur reçoit un email de notification dès que le kooker accepte ou refuse
+
+**Cycle de vie des statuts :**
 
 ```
-pending             → Réservation créée, en attente de confirmation kooker
+pending             → Demande envoyée, en attente de confirmation kooker
 confirmed           → Kooker a accepté, paiement capturé
 awaiting_confirmation → Prestation effectuée, en attente de confirmation par le client
 completed           → Client a confirmé la réalisation (fonds transférés au kooker)
@@ -342,6 +368,10 @@ cancelled           → Annulation (par client ou kooker)
 
 **Règle de date passée :**
 - Impossible de créer une réservation avec une date passée → erreur `400` : *"La date de réservation est dépassée"*
+
+**Règle d'unicité :**
+- Le serveur vérifie l'unicité de la combinaison `(userId, serviceId, date, startTime)` en excluant les réservations annulées
+- Si une réservation identique existe déjà → erreur `409` : *"Vous avez déjà une réservation pour ce service à cette date et heure"*
 
 ---
 
@@ -684,6 +714,37 @@ Valeurs modifiables (stockées en DB) :
 - `GET /admin/business-charts` : acquisition sur 12 semaines, répartition des statuts, top kookers, métriques de santé
 - `GET /admin/tech-stats` : compteurs DB, taille des uploads, logs d'erreurs, temps de page
 
+### 15.5 Pages frontend — liste complète
+
+| Route | Composant | Description |
+|-------|-----------|-------------|
+| `/` | HomePage | Accueil |
+| `/recherche` | SearchPage | Recherche de prestations |
+| `/prestation/:id` | ServiceDetailPage | Détail d'une prestation |
+| `/kooker/:id` | KookerProfilePage | Profil public kooker |
+| `/connexion` | LoginPage | Connexion / Inscription |
+| `/verifier-email` | VerifyEmailPage | Vérification d'email après inscription |
+| `/confirmer-email` | ConfirmEmailChangePage | Confirmation de changement d'email |
+| `/contact` | ContactPage | Formulaire de contact |
+| `/tableau-de-bord` | UserDashboardPage | Dashboard utilisateur |
+| `/kooker-dashboard` | KookerDashboardPage | Dashboard kooker |
+| `/devenir-kooker` | BecomeKookerPage | Formulaire devenir kooker |
+| `/creer-offre` | CreateMenuPage | Créer une offre |
+| `/modifier-offre/:id` | EditMenuPage | Modifier une offre |
+| `/reservation` | BookingPage | Tunnel de réservation |
+| `/reservation/:id` | BookingDetailPage | Détail réservation |
+| `/messagerie` | MessagesPage | Messagerie |
+| `/mon-profil` | UserProfilePage | Profil utilisateur |
+| `/admin` | AdminDashboardPage | Tableau de bord admin |
+| `/admin/utilisateurs` | AdminUsersPage | Gestion utilisateurs |
+| `/admin/kookers` | AdminKookersPage | Gestion kookers |
+| `/admin/avis` | AdminReviewsPage | Modération des avis |
+| `/admin/reservations` | AdminBookingsPage | Suivi réservations |
+| `/admin/services` | AdminServicesPage | Catalogue services |
+| `/admin/temoignages` | AdminTestimonialsPage | Modération témoignages |
+| `/admin/faq` | AdminFaqPage | Gestion FAQ |
+| `/admin/configuration` | AdminConfigPage | Configuration dynamique |
+
 ---
 
 ## 16. Règles métier transverses
@@ -727,6 +788,16 @@ Les emails sont envoyés de manière asynchrone (non bloquant). Un échec d'envo
 | `POST /auth/login` | 50 req / 15 min |
 | `POST /auth/register` | 50 req / 15 min |
 | `POST /auth/forgot-password` | 5 req / 15 min |
+| `POST /auth/resend-verification` | 5 req / 15 min |
+
+### 16.8 Codes HTTP d'autorisation
+
+| Code | Signification | Cas d'usage |
+|------|--------------|-------------|
+| `401` | Non authentifié | Cookie JWT absent, invalide ou expiré |
+| `403` | Interdit (rôle insuffisant) | Utilisateur authentifié mais sans le rôle requis (`requireKooker`, `requireAdmin`) |
+
+Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden) et non 401, car l'utilisateur est bien identifié mais n'a pas les permissions nécessaires.
 
 ### 16.6 Images
 
