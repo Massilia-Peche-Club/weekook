@@ -894,7 +894,7 @@ export default function EditMenuPage() {
                     </div>
                     <span className="text-[14px] text-[#303044]">{a}</span>
                     {a === 'Fruits de mer' && (
-                      <span title={tooltipFruitsDesMer} className="text-[#828294] cursor-help text-[12px] leading-none">ⓘ</span>
+                      <span title={tooltipFruitsDesMer} className="text-[#828294] cursor-help text-[12px] leading-none" onClick={(e) => e.stopPropagation()}>ⓘ</span>
                     )}
                   </label>
                 ))}

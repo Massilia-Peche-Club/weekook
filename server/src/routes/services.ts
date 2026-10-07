@@ -44,6 +44,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       minPrice,
       maxPrice,
       featured,
+      date,
       page = '1',
       limit = '12',
     } = req.query as Record<string, string>;
@@ -56,6 +57,12 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
     if (featured === 'true') kookerFilter.featured = true;
     if (city) kookerFilter.city = { contains: city };
     if (specialty) kookerFilter.specialties = { string_contains: specialty };
+    if (date) {
+      const dateObj = new Date(date);
+      if (!isNaN(dateObj.getTime())) {
+        kookerFilter.availabilities = { some: { date: dateObj, isAvailable: true } };
+      }
+    }
 
     const serviceWhere: Record<string, unknown> = {
       active: true,

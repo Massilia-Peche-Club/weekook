@@ -378,6 +378,22 @@ export default function KookerProfilePage() {
     }
   }, [id, user]);
 
+  // Auto-advance calendar to first month with availability
+  useEffect(() => {
+    if (!profile || profile.availabilities.length === 0) return;
+    const dates = profile.availabilities.map(av => av.date.substring(0, 10)).sort();
+    const first = dates[0];
+    if (!first) return;
+    const [y, m] = first.split('-').map(Number);
+    const firstMonth = m - 1;
+    const nowMonth = now.getMonth();
+    const nowYear = now.getFullYear();
+    if (y > nowYear || (y === nowYear && firstMonth > nowMonth)) {
+      setCalendarYear(y);
+      setCalendarMonth(firstMonth);
+    }
+  }, [profile]);
+
   // Available dates set for calendar
   const availableDatesMap = useMemo(() => {
     if (!profile) return new Map<string, Availability[]>();
