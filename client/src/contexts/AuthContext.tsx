@@ -13,11 +13,16 @@ interface User {
   kookerProfileId?: number | null;
 }
 
+interface RegisterResult {
+  requiresVerification: boolean;
+  email?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (data: { email: string; password: string; firstName: string; lastName: string }) => Promise<void>;
+  register: (data: { email: string; password: string; firstName: string; lastName: string }) => Promise<RegisterResult>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -52,11 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     throw new Error('Login failed');
   };
 
-  const register = async (data: { email: string; password: string; firstName: string; lastName: string }) => {
-    const res = await api.post<User>('/auth/register', data);
+  const register = async (data: { email: string; password: string; firstName: string; lastName: string }): Promise<RegisterResult> => {
+    const res = await api.post<{ requiresVerification: boolean; email: string }>('/auth/register', data);
     if (res.success && res.data) {
-      setUser(res.data);
+      return { requiresVerification: res.data.requiresVerification, email: res.data.email };
     }
+    return { requiresVerification: false };
   };
 
   const logout = async () => {

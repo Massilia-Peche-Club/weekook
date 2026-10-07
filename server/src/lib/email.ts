@@ -550,6 +550,44 @@ export async function sendNewReviewPendingToAdmins(
 
 // ─── Kooker auto-validation notification ─────────────────────────────────────
 
+// ─── Email verification ───────────────────────────────────────────────────────
+
+export async function sendEmailVerification(
+  userEmail: string,
+  userFirstName: string,
+  verifyUrl: string
+): Promise<void> {
+  const html = emailWrapper(
+    '✉️',
+    `Vérifiez votre adresse email`,
+    `<p style="color:#6b7280;font-size:14px;margin:0 0 16px 0;">Bonjour ${userFirstName}, merci de vous être inscrit sur Weekook !</p>
+    <p style="color:#6b7280;font-size:14px;margin:0 0 16px 0;">Cliquez sur le bouton ci-dessous pour confirmer votre adresse email et activer votre compte.</p>
+    <p style="color:#9ca3af;font-size:12px;margin:0;">Ce lien est valable <strong>24 heures</strong>. Si vous n'avez pas créé de compte, ignorez cet email.</p>`,
+    verifyUrl,
+    'Vérifier mon email'
+  );
+  await sendEmail(userEmail, 'Confirmez votre adresse email Weekook', html, 'email-verification');
+}
+
+// ─── Email change verification ────────────────────────────────────────────────
+
+export async function sendEmailChangeVerification(
+  newEmail: string,
+  userFirstName: string,
+  verifyUrl: string
+): Promise<void> {
+  const html = emailWrapper(
+    '🔄',
+    `Confirmez votre nouvelle adresse email`,
+    `<p style="color:#6b7280;font-size:14px;margin:0 0 16px 0;">Bonjour ${userFirstName}, vous avez demandé à changer votre adresse email Weekook.</p>
+    <p style="color:#6b7280;font-size:14px;margin:0 0 16px 0;">Cliquez sur le bouton ci-dessous pour confirmer cette nouvelle adresse.</p>
+    <p style="color:#9ca3af;font-size:12px;margin:0;">Ce lien est valable <strong>24 heures</strong>. Si vous n'avez pas fait cette demande, ignorez cet email — votre adresse actuelle reste inchangée.</p>`,
+    verifyUrl,
+    'Confirmer ma nouvelle adresse'
+  );
+  await sendEmail(newEmail, 'Confirmez votre nouvelle adresse email Weekook', html, 'email-change-verification');
+}
+
 export async function sendKookerAutoValidatedToAdmins(
   kookerName: string,
   kookerId: number

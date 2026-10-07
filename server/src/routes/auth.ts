@@ -9,7 +9,7 @@ import { rateLimit } from '../middleware/rateLimit.js';
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/auth.js';
 import { AppError } from '../utils/errors.js';
 import { env } from '../config/env.js';
-import { sendPasswordResetEmail, sendWelcomeEmail } from '../lib/email.js';
+import { sendPasswordResetEmail, sendEmailVerification } from '../lib/email.js';
 
 const router = Router();
 
@@ -17,7 +17,7 @@ const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
-  maxAge: INACTIVITY_TIMEOUT_MS, // 2h inactivity timeout
+  maxAge: INACTIVITY_TIMEOUT_MS,
   path: '/',
 };
 
@@ -43,31 +43,24 @@ router.post(
           password: hashedPassword,
           firstName,
           lastName,
+          emailVerified: false,
         },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          avatar: true,
-          role: true,
-          createdAt: true,
-        },
+        select: { id: true, email: true, firstName: true, lastName: true },
       });
 
-      const token = signToken({ userId: user.id, email: user.email });
-      res.cookie('token', token, COOKIE_OPTIONS);
+      // Create email verification token (24h)
+      await prisma.emailToken.deleteMany({ where: { userId: user.id, type: 'verify' } });
+      const token = crypto.randomBytes(32).toString('hex');
+      await prisma.emailToken.create({
+        data: { userId: user.id, token, type: 'verify', expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+      });
 
-      // Send welcome email (fire-and-forget — BUG-034)
-      sendWelcomeEmail(user.email, user.firstName).catch(() => {});
+      const verifyUrl = `${env.APP_URL}/verifier-email?token=${token}`;
+      sendEmailVerification(user.email, user.firstName, verifyUrl).catch(() => {});
 
       res.status(201).json({
         success: true,
-        data: {
-          ...user,
-          kookerProfileId: null,
-        },
+        data: { requiresVerification: true, email: user.email },
       });
     } catch (error) {
       next(error);
@@ -97,8 +90,17 @@ router.post(
         throw new AppError('Email ou mot de passe incorrect.', 401);
       }
 
-      const token = signToken({ userId: user.id, email: user.email });
-      res.cookie('token', token, COOKIE_OPTIONS);
+      if (user.emailVerified === false) {
+        res.status(403).json({
+          success: false,
+          error: 'Veuillez confirmer votre adresse email avant de vous connecter.',
+          code: 'email_not_verified',
+        });
+        return;
+      }
+
+      const jwtToken = signToken({ userId: user.id, email: user.email });
+      res.cookie('token', jwtToken, COOKIE_OPTIONS);
 
       res.json({
         success: true,
@@ -157,6 +159,90 @@ router.get(
           kookerProfileId: user.kookerProfile?.id || null,
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /verify-email?token=xxx
+router.get(
+  '/verify-email',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { token } = req.query as { token: string };
+
+      if (!token) {
+        throw new AppError('Token manquant.', 400);
+      }
+
+      const emailToken = await prisma.emailToken.findUnique({
+        where: { token },
+        include: { user: { include: { kookerProfile: { select: { id: true } } } } },
+      });
+
+      if (!emailToken || emailToken.type !== 'verify' || emailToken.used || emailToken.expiresAt < new Date()) {
+        throw new AppError('Ce lien est invalide ou a expiré.', 400);
+      }
+
+      await prisma.$transaction([
+        prisma.user.update({ where: { id: emailToken.userId }, data: { emailVerified: true } }),
+        prisma.emailToken.update({ where: { id: emailToken.id }, data: { used: true } }),
+      ]);
+
+      const user = emailToken.user;
+      const jwtToken = signToken({ userId: user.id, email: user.email });
+      res.cookie('token', jwtToken, COOKIE_OPTIONS);
+
+      res.json({
+        success: true,
+        data: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          avatar: user.avatar,
+          role: user.role,
+          isAdmin: user.isAdmin,
+          createdAt: user.createdAt,
+          kookerProfileId: user.kookerProfile?.id || null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /resend-verification
+router.post(
+  '/resend-verification',
+  rateLimit(5, 15 * 60 * 1000),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        res.json({ success: true, data: { message: 'Si ce compte existe, un email a été envoyé.' } });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user || user.emailVerified !== false) {
+        res.json({ success: true, data: { message: 'Si ce compte existe, un email a été envoyé.' } });
+        return;
+      }
+
+      await prisma.emailToken.deleteMany({ where: { userId: user.id, type: 'verify' } });
+      const token = crypto.randomBytes(32).toString('hex');
+      await prisma.emailToken.create({
+        data: { userId: user.id, token, type: 'verify', expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+      });
+
+      const verifyUrl = `${env.APP_URL}/verifier-email?token=${token}`;
+      sendEmailVerification(user.email, user.firstName, verifyUrl).catch(() => {});
+
+      res.json({ success: true, data: { message: 'Si ce compte existe, un email a été envoyé.' } });
     } catch (error) {
       next(error);
     }

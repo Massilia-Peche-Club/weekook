@@ -207,9 +207,13 @@ const UserProfilePage = () => {
         phone: personal.phone,
       };
       if (personal.email !== (user?.email ?? '')) payload.email = personal.email;
-      await api.put('/users/profile', payload);
+      const res = await api.put<{ pendingEmailChange?: boolean }>('/users/profile', payload);
       await refreshUser();
-      toast.success('Informations mises à jour');
+      if (res.data?.pendingEmailChange) {
+        toast.success('Un lien de confirmation a été envoyé à votre nouvelle adresse email.');
+      } else {
+        toast.success('Informations mises à jour');
+      }
     } catch { toast.error('Erreur lors de la mise à jour'); }
     finally { setSavingPersonal(false); }
   };

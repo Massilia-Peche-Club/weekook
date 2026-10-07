@@ -31,6 +31,10 @@ const LoginPage = () => {
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showRegisterConfirm, setShowRegisterConfirm] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [showVerificationSuccess, setShowVerificationSuccess] = useState(false);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'loading' | 'sent'>('idle');
+  const [loginUnverifiedEmail, setLoginUnverifiedEmail] = useState('');
 
   // Forgot password state
   const [showForgotDialog, setShowForgotDialog] = useState(false);
@@ -68,7 +72,13 @@ const LoginPage = () => {
       else if (loggedUser.kookerProfileId) navigate('/tableau-de-bord');
       else navigate('/');
     } catch (err: any) {
-      setLoginError(err?.error || err?.response?.data?.error || err?.message || 'Erreur de connexion. Vérifiez vos identifiants.');
+      if (err?.code === 'email_not_verified') {
+        setLoginUnverifiedEmail(loginEmail);
+        setLoginError(err?.error || 'Veuillez confirmer votre adresse email avant de vous connecter.');
+      } else {
+        setLoginUnverifiedEmail('');
+        setLoginError(err?.error || err?.response?.data?.error || err?.message || 'Erreur de connexion. Vérifiez vos identifiants.');
+      }
     } finally {
       setLoginLoading(false);
     }
@@ -96,9 +106,14 @@ const LoginPage = () => {
     setRegisterLoading(true);
 
     try {
-      await register({ email: registerEmail, password: registerPassword, firstName: registerFirstName, lastName: registerLastName });
-      const redirect = searchParams.get('redirect');
-      navigate(redirect || '/');
+      const result = await register({ email: registerEmail, password: registerPassword, firstName: registerFirstName, lastName: registerLastName });
+      if (result.requiresVerification) {
+        setVerificationEmail(result.email || registerEmail);
+        setShowVerificationSuccess(true);
+      } else {
+        const redirect = searchParams.get('redirect');
+        navigate(redirect || '/');
+      }
     } catch (err: any) {
       setRegisterError(err?.error || err?.response?.data?.error || err?.message || 'Erreur lors de l\'inscription.');
     } finally {
@@ -187,6 +202,25 @@ const LoginPage = () => {
               {loginError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-[8px] text-[13px]">
                   {loginError}
+                </div>
+              )}
+
+              {loginUnverifiedEmail && (
+                <div className="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-center">
+                  <button
+                    type="button"
+                    disabled={resendStatus === 'loading' || resendStatus === 'sent'}
+                    onClick={async () => {
+                      setResendStatus('loading');
+                      try {
+                        await api.post('/auth/resend-verification', { email: loginUnverifiedEmail });
+                        setResendStatus('sent');
+                      } catch { setResendStatus('idle'); }
+                    }}
+                    className="text-[13px] text-amber-700 font-medium hover:text-amber-800 transition-colors disabled:opacity-60"
+                  >
+                    {resendStatus === 'sent' ? 'Email renvoyé !' : resendStatus === 'loading' ? 'Envoi...' : "Renvoyer l'email de vérification"}
+                  </button>
                 </div>
               )}
 
@@ -293,8 +327,34 @@ const LoginPage = () => {
             </form>
           )}
 
+          {/* Email verification success state */}
+          {activeTab === 'register' && showVerificationSuccess && (
+            <div className="text-center py-8 space-y-4">
+              <div className="w-16 h-16 bg-[#f3ecff] rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-[#c1a0fd]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+              </div>
+              <h3 className="text-[20px] font-semibold text-[#111125]">Vérifiez votre email</h3>
+              <p className="text-[14px] text-[#5c5c6f]">
+                Un lien de confirmation a été envoyé à<br />
+                <strong className="text-[#111125]">{verificationEmail}</strong>
+              </p>
+              <p className="text-[13px] text-[#828294]">
+                Cliquez sur le lien dans l'email pour activer votre compte. Vérifiez vos spams si besoin.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setActiveTab('login'); setShowVerificationSuccess(false); setLoginEmail(verificationEmail); }}
+                className="text-[13px] text-[#c1a0fd] hover:text-[#b090ed] font-medium transition-colors"
+              >
+                Retour à la connexion
+              </button>
+            </div>
+          )}
+
           {/* Register Form */}
-          {activeTab === 'register' && (
+          {activeTab === 'register' && !showVerificationSuccess && (
             <form onSubmit={handleRegister} className="space-y-4">
               {registerError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-[8px] text-[13px]">

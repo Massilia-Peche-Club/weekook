@@ -37,6 +37,8 @@ const AdminConfigPage = lazy(() => import('@/pages/admin/AdminConfigPage').then(
 const AdminServicesPage = lazy(() => import('@/pages/admin/AdminServicesPage').then(m => ({ default: m.default })));
 const AdminReviewsPage = lazy(() => import('@/pages/admin/AdminReviewsPage').then(m => ({ default: m.default })));
 const AdminFaqPage = lazy(() => import('@/pages/admin/AdminFaqPage').then(m => ({ default: m.default })));
+const VerifyEmailPage = lazy(() => import('@/pages/VerifyEmailPage').then(m => ({ default: m.default })));
+const ConfirmEmailChangePage = lazy(() => import('@/pages/ConfirmEmailChangePage').then(m => ({ default: m.default })));
 
 function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -93,6 +95,8 @@ export function AppRouter() {
         </Route>
         <Route path="/connexion" element={<LoginPage />} />
         <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
+        <Route path="/verifier-email" element={<VerifyEmailPage />} />
+        <Route path="/confirmer-email" element={<ConfirmEmailChangePage />} />
         <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
           <Route index element={<AdminDashboardPage />} />
           <Route path="utilisateurs" element={<AdminUsersPage />} />
