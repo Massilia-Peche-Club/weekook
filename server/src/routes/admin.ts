@@ -226,16 +226,17 @@ router.put('/kookers/:id', async (req: Request, res: Response, next: NextFunctio
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
-// GET /reviews — list all reviews (optional ?status=pending|approved|rejected)
+// GET /reviews — list all reviews (optional ?status=pending|approved|rejected&type=user_to_kooker|kooker_to_user)
 router.get('/reviews', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { status, page = '1', limit = '20' } = req.query as Record<string, string>;
+    const { status, type, page = '1', limit = '20' } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
     const skip = (pageNum - 1) * limitNum;
 
-    const where: Record<string, unknown> = { type: 'user_to_kooker' };
+    const where: Record<string, unknown> = {};
     if (status) where.status = status;
+    if (type && ['user_to_kooker', 'kooker_to_user'].includes(type)) where.type = type;
 
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
@@ -248,6 +249,7 @@ router.get('/reviews', async (req: Request, res: Response, next: NextFunction) =
               user: { select: { id: true, firstName: true, lastName: true } },
             },
           },
+          targetUser: { select: { id: true, firstName: true, lastName: true, avatar: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -301,35 +303,39 @@ router.put('/reviews/:id/status', async (req: Request, res: Response, next: Next
     if (status === 'approved') {
       await prisma.review.update({ where: { id }, data: { status: 'approved' } });
 
-      // Recalculate kooker rating — only approved user_to_kooker reviews
-      const agg = await prisma.review.aggregate({
-        where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
-        _avg: { rating: true },
-        _count: { rating: true },
-      });
-      await prisma.kookerProfile.update({
-        where: { id: review.kookerProfileId },
-        data: {
-          rating: Math.round((agg._avg.rating || 0) * 10) / 10,
-          reviewCount: agg._count.rating,
-        },
-      });
+      // Recalculate kooker rating only for user_to_kooker reviews
+      if (review.type === 'user_to_kooker') {
+        const agg = await prisma.review.aggregate({
+          where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
+          _avg: { rating: true },
+          _count: { rating: true },
+        });
+        await prisma.kookerProfile.update({
+          where: { id: review.kookerProfileId },
+          data: {
+            rating: Math.round((agg._avg.rating || 0) * 10) / 10,
+            reviewCount: agg._count.rating,
+          },
+        });
+      }
       res.json({ success: true, data: { message: 'Avis approuvé' } });
     } else {
-      // Rejected → delete + recalculate rating (BUG-036: handles case where review was previously approved)
+      // Rejected → delete + recalculate rating if needed
       await prisma.review.delete({ where: { id } });
-      const agg = await prisma.review.aggregate({
-        where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
-        _avg: { rating: true },
-        _count: { rating: true },
-      });
-      await prisma.kookerProfile.update({
-        where: { id: review.kookerProfileId },
-        data: {
-          rating: Math.round((agg._avg.rating || 0) * 10) / 10,
-          reviewCount: agg._count.rating,
-        },
-      });
+      if (review.type === 'user_to_kooker') {
+        const agg = await prisma.review.aggregate({
+          where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
+          _avg: { rating: true },
+          _count: { rating: true },
+        });
+        await prisma.kookerProfile.update({
+          where: { id: review.kookerProfileId },
+          data: {
+            rating: Math.round((agg._avg.rating || 0) * 10) / 10,
+            reviewCount: agg._count.rating,
+          },
+        });
+      }
       res.json({ success: true, data: { message: 'Avis rejeté et supprimé' } });
     }
   } catch (error) {
@@ -346,19 +352,21 @@ router.delete('/reviews/:id', async (req: Request, res: Response, next: NextFunc
 
     await prisma.review.delete({ where: { id } });
 
-    // Recalculate kooker rating — only approved reviews
-    const agg = await prisma.review.aggregate({
-      where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
-      _avg: { rating: true },
-      _count: { rating: true },
-    });
-    await prisma.kookerProfile.update({
-      where: { id: review.kookerProfileId },
-      data: {
-        rating: Math.round((agg._avg.rating || 0) * 10) / 10,
-        reviewCount: agg._count.rating,
-      },
-    });
+    // Recalculate kooker rating only for user_to_kooker reviews
+    if (review.type === 'user_to_kooker') {
+      const agg = await prisma.review.aggregate({
+        where: { kookerProfileId: review.kookerProfileId, type: 'user_to_kooker', status: 'approved' },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      await prisma.kookerProfile.update({
+        where: { id: review.kookerProfileId },
+        data: {
+          rating: Math.round((agg._avg.rating || 0) * 10) / 10,
+          reviewCount: agg._count.rating,
+        },
+      });
+    }
 
     res.json({ success: true, data: { message: 'Avis supprimé' } });
   } catch (error) {

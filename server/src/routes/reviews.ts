@@ -173,14 +173,6 @@ router.post(
         throw new AppError('La prestation doit être terminée', 400);
       }
 
-      // Check that user has already left a review on this booking
-      const userReview = await prisma.review.findFirst({
-        where: { bookingId, type: 'user_to_kooker' },
-      });
-      if (!userReview) {
-        throw new AppError('Le client doit d\'abord laisser un avis avant que vous puissiez noter', 400);
-      }
-
       // Check kooker hasn't already reviewed this booking
       const existingKookerReview = await prisma.review.findFirst({
         where: { bookingId, type: 'kooker_to_user' },
