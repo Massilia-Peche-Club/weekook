@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Star, Clock, Users, ChevronLeft, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import { hasDuration } from '@/lib/utils';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -241,6 +242,7 @@ export default function ServiceDetailPage() {
             <div className="bg-white rounded-[20px] p-6 shadow-sm">
               <h2 className="text-[18px] font-semibold text-[#111125] mb-4">Informations pratiques</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {hasDuration(service.type, service.durationMinutes) && (
                 <div className="flex items-center gap-3">
                   <div className="w-[40px] h-[40px] rounded-full bg-[#f3ecff] flex items-center justify-center flex-shrink-0">
                     <Clock className="w-5 h-5 text-[#c1a0fd]" />
@@ -250,6 +252,7 @@ export default function ServiceDetailPage() {
                     <p className="text-[14px] font-medium text-[#111125]">{formatDuration(service.durationMinutes)}</p>
                   </div>
                 </div>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="w-[40px] h-[40px] rounded-full bg-[#f3ecff] flex items-center justify-center flex-shrink-0">
                     <Users className="w-5 h-5 text-[#c1a0fd]" />

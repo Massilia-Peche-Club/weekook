@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ServiceCard from '@/components/common/ServiceCard';
+import CityAutocomplete, { type GeoPlace } from '@/components/common/CityAutocomplete';
 import { api } from '@/lib/api';
 import { usePageTiming } from '@/hooks/usePageTiming';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +17,22 @@ const SERVICE_PLACEHOLDER_IMAGES = [
 // ─── Types ──────────────────────────────────────────────────────────────────────
 type ServiceType = 'KOOK' | 'COURS' | 'BOTH' | '';
 type SortOption = 'pertinence' | 'prix-asc' | 'prix-desc' | 'note';
+
+// Lieu de la prestation (#82) : « chez moi », ma position ou une ville choisie
+interface SearchLocation {
+  label: string;
+  lat: number;
+  lng: number;
+}
+
+// Distance que le client accepte de parcourir (en plus de la zone d'intervention du kooker)
+const TRAVEL_OPTIONS = [
+  { value: '0', label: 'Non, le kooker vient à moi' },
+  { value: '5', label: "Jusqu'à 5 km" },
+  { value: '10', label: "Jusqu'à 10 km" },
+  { value: '20', label: "Jusqu'à 20 km" },
+  { value: '50', label: "Jusqu'à 50 km" },
+];
 
 interface DisplayService {
   id: number;
@@ -62,7 +79,6 @@ const FALLBACK_SPECIALTIES = [
   'Libanaise', 'Végétarienne', 'Italienne', 'Japonaise', 'Couscous',
   'Brunch', 'Healthy', 'BBQ', 'Fruits de mer', 'Gastronomique',
 ];
-const FALLBACK_CITIES = ['Marseille', 'Aix-en-Provence', 'Cassis', 'Aubagne', 'La Ciotat'];
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 export default function SearchPage() {
@@ -72,7 +88,12 @@ export default function SearchPage() {
   const initialQuery = searchParams.get('q') || '';
   const initialType = (searchParams.get('type') || '') as ServiceType;
   const initialSpecialty = searchParams.get('specialty') || 'Toutes';
-  const initialCity = searchParams.get('city') || 'Toutes';
+  const initialLat = parseFloat(searchParams.get('lat') || '');
+  const initialLng = parseFloat(searchParams.get('lng') || '');
+  const initialLocation: SearchLocation | null = !isNaN(initialLat) && !isNaN(initialLng)
+    ? { label: searchParams.get('loc') || 'Lieu choisi', lat: initialLat, lng: initialLng }
+    : null;
+  const initialRadius = searchParams.get('radius') || '0';
   const initialMinPrice = searchParams.get('minPrice') || '';
   const initialMaxPrice = searchParams.get('maxPrice') || '';
   const initialDifficulty = searchParams.get('difficulty') || '';
@@ -87,7 +108,10 @@ export default function SearchPage() {
   // Pending filter state (inside the filter panel, not yet applied)
   const [pendingType, setPendingType] = useState<ServiceType>(initialType);
   const [pendingSpecialty, setPendingSpecialty] = useState(initialSpecialty);
-  const [pendingCity, setPendingCity] = useState(initialCity);
+  const [pendingLocation, setPendingLocation] = useState<SearchLocation | null>(initialLocation);
+  const [locationText, setLocationText] = useState(initialLocation?.label || '');
+  const [pendingRadius, setPendingRadius] = useState(initialRadius);
+  const [locating, setLocating] = useState(false);
   const [pendingMinPrice, setPendingMinPrice] = useState(initialMinPrice);
   const [pendingMaxPrice, setPendingMaxPrice] = useState(initialMaxPrice);
   const [pendingDifficulty, setPendingDifficulty] = useState(initialDifficulty);
@@ -96,7 +120,8 @@ export default function SearchPage() {
   // Applied filter state (sent to API)
   const [type, setType] = useState<ServiceType>(initialType);
   const [specialty, setSpecialty] = useState(initialSpecialty);
-  const [city, setCity] = useState(initialCity);
+  const [location, setLocation] = useState<SearchLocation | null>(initialLocation);
+  const [radius, setRadius] = useState(initialRadius);
   const [minPrice, setMinPrice] = useState(initialMinPrice);
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
   const [difficulty, setDifficulty] = useState(initialDifficulty);
@@ -111,17 +136,13 @@ export default function SearchPage() {
 
   // Config from admin (BUG-008/031)
   const [configSpecialties, setConfigSpecialties] = useState<string[]>(FALLBACK_SPECIALTIES);
-  const [configCities, setConfigCities] = useState<string[]>(FALLBACK_CITIES);
 
   useEffect(() => {
-    api.get<{ specialties?: string[]; cities?: string[] }>('/admin/config/public')
+    api.get<{ specialties?: string[] }>('/admin/config/public')
       .then((res) => {
         if (res.success && res.data) {
           if (Array.isArray(res.data.specialties) && res.data.specialties.length > 0) {
             setConfigSpecialties(res.data.specialties);
-          }
-          if (Array.isArray(res.data.cities) && res.data.cities.length > 0) {
-            setConfigCities(res.data.cities);
           }
         }
       })
@@ -174,7 +195,11 @@ export default function SearchPage() {
       if (query.trim()) params.set('q', query.trim());
       if (type && type !== 'BOTH') params.set('type', type);
       if (specialty !== 'Toutes') params.set('specialty', specialty);
-      if (city !== 'Toutes') params.set('city', city);
+      if (location) {
+        params.set('lat', String(location.lat));
+        params.set('lng', String(location.lng));
+        if (radius !== '0') params.set('radius', radius);
+      }
       if (minPrice) params.set('minPrice', minPrice);
       if (maxPrice) params.set('maxPrice', maxPrice);
       if (difficulty && type === 'COURS') params.set('difficulty', difficulty);
@@ -199,7 +224,7 @@ export default function SearchPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [query, type, specialty, city, minPrice, maxPrice, difficulty, date, sort]);
+  }, [query, type, specialty, location, radius, minPrice, maxPrice, difficulty, date, sort]);
 
   // Debounce API calls
   useEffect(() => {
@@ -218,13 +243,66 @@ export default function SearchPage() {
     if (query) params.set('q', query);
     if (type) params.set('type', type);
     if (specialty !== 'Toutes') params.set('specialty', specialty);
-    if (city !== 'Toutes') params.set('city', city);
+    if (location) {
+      params.set('loc', location.label);
+      params.set('lat', String(location.lat));
+      params.set('lng', String(location.lng));
+      if (radius !== '0') params.set('radius', radius);
+    }
     if (minPrice) params.set('minPrice', minPrice);
     if (maxPrice) params.set('maxPrice', maxPrice);
     if (difficulty && type === 'COURS') params.set('difficulty', difficulty);
     if (date) params.set('date', date);
     setSearchParams(params, { replace: true });
-  }, [query, type, specialty, city, minPrice, maxPrice, difficulty, date, setSearchParams]);
+  }, [query, type, specialty, location, radius, minPrice, maxPrice, difficulty, date, setSearchParams]);
+
+  const chooseLocation = (loc: SearchLocation | null) => {
+    setPendingLocation(loc);
+    setLocationText(loc?.label || '');
+  };
+
+  // « Ma position » : géolocalisation du navigateur, modifiable ensuite
+  const locateMe = () => {
+    if (!navigator.geolocation) {
+      toast.error('La géolocalisation n\'est pas disponible sur cet appareil.');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        let label = 'Ma position';
+        try {
+          const res = await api.get<GeoPlace | null>(`/geo/reverse?lat=${latitude}&lng=${longitude}`);
+          if (res.success && res.data) label = `Ma position (${res.data.city})`;
+        } catch { /* on garde le libellé générique */ }
+        chooseLocation({ label, lat: latitude, lng: longitude });
+        setLocating(false);
+      },
+      () => {
+        toast.error('Impossible de récupérer votre position.');
+        setLocating(false);
+      },
+      { timeout: 10000 }
+    );
+  };
+
+  // « Chez moi » : adresse renseignée dans le profil client
+  const locateHome = async () => {
+    setLocating(true);
+    try {
+      const res = await api.get<GeoPlace | null>('/geo/home');
+      if (res.success && res.data) {
+        chooseLocation({ label: 'Chez moi', lat: res.data.latitude, lng: res.data.longitude });
+      } else {
+        toast.error('Renseignez votre adresse dans « Mon profil » pour utiliser « Chez moi ».');
+      }
+    } catch {
+      toast.error('Impossible de localiser votre adresse.');
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const applyFilters = () => {
     // BUG-043: validate min ≤ max before applying
@@ -234,7 +312,8 @@ export default function SearchPage() {
     }
     setType(pendingType);
     setSpecialty(pendingSpecialty);
-    setCity(pendingCity);
+    setLocation(pendingLocation);
+    setRadius(pendingLocation ? pendingRadius : '0');
     setMinPrice(pendingMinPrice);
     setMaxPrice(pendingMaxPrice);
     setDifficulty(pendingType === 'COURS' ? pendingDifficulty : '');
@@ -244,14 +323,16 @@ export default function SearchPage() {
   const resetFilters = () => {
     setPendingType('');
     setPendingSpecialty('Toutes');
-    setPendingCity('Toutes');
+    chooseLocation(null);
+    setPendingRadius('0');
     setPendingMinPrice('');
     setPendingMaxPrice('');
     setPendingDifficulty('');
     setPendingDate('');
     setType('');
     setSpecialty('Toutes');
-    setCity('Toutes');
+    setLocation(null);
+    setRadius('0');
     setMinPrice('');
     setMaxPrice('');
     setDifficulty('');
@@ -263,7 +344,7 @@ export default function SearchPage() {
     query !== '' ||
     type !== '' ||
     specialty !== 'Toutes' ||
-    city !== 'Toutes' ||
+    location !== null ||
     minPrice !== '' ||
     maxPrice !== '' ||
     difficulty !== '' ||
@@ -437,20 +518,53 @@ export default function SearchPage() {
                   </div>
                 </div>
 
-                {/* Ville */}
+                {/* Lieu de la prestation */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium text-[#303044]">Ville</label>
-                  <select
-                    value={pendingCity}
-                    onChange={(e) => setPendingCity(e.target.value)}
-                    className="h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
-                  >
-                    <option value="Toutes">Toutes les villes</option>
-                    {configCities.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  <label className="text-[13px] font-medium text-[#303044]">Où ?</label>
+                  <CityAutocomplete
+                    value={locationText}
+                    onChange={(text) => { setLocationText(text); setPendingLocation(null); }}
+                    onSelect={(place) => chooseLocation({ label: place.label, lat: place.latitude, lng: place.longitude })}
+                    placeholder="Ville ou code postal"
+                    className="w-full h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {user && (
+                      <button
+                        type="button"
+                        onClick={locateHome}
+                        disabled={locating}
+                        className="px-2.5 py-1 rounded-[8px] bg-[#f3ecff] text-[12px] font-medium text-[#303044] hover:bg-[#ece2fe] transition-colors disabled:opacity-50"
+                      >
+                        🏠 Chez moi
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={locateMe}
+                      disabled={locating}
+                      className="px-2.5 py-1 rounded-[8px] bg-[#f3ecff] text-[12px] font-medium text-[#303044] hover:bg-[#ece2fe] transition-colors disabled:opacity-50"
+                    >
+                      📍 {locating ? 'Localisation…' : 'Ma position'}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Distance que le client accepte de parcourir */}
+                {pendingLocation && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[13px] font-medium text-[#303044]">Je peux me déplacer</label>
+                    <select
+                      value={pendingRadius}
+                      onChange={(e) => setPendingRadius(e.target.value)}
+                      className="h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
+                    >
+                      {TRAVEL_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Disponibilité */}
                 <div className="flex flex-col gap-1.5">
@@ -522,10 +636,10 @@ export default function SearchPage() {
                     </button>
                   </span>
                 )}
-                {city !== 'Toutes' && (
+                {location && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#f3ecff] border border-[#c1a0fd] text-[#c1a0fd] rounded-[8px] text-[12px] font-medium">
-                    {city}
-                    <button onClick={() => { setCity('Toutes'); setPendingCity('Toutes'); }} className="hover:text-[#111125] transition-colors">
+                    📍 {location.label}{radius !== '0' ? ` · ${radius} km` : ''}
+                    <button onClick={() => { setLocation(null); setRadius('0'); chooseLocation(null); setPendingRadius('0'); }} className="hover:text-[#111125] transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>

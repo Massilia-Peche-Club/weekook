@@ -51,6 +51,9 @@ model KookerProfile {
   verified        Boolean   @default(false)
   isCompany       Boolean   @default(false) @map("is_company")
   active          Boolean   @default(true)
+  latitude        Float?
+  longitude       Float?
+  serviceRadiusKm Int       @default(30) @map("service_radius_km")
   stripeAccountId          String?   @map("stripe_account_id")
   stripeOnboardingComplete Boolean   @default(false) @map("stripe_onboarding_complete")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -310,6 +313,19 @@ model Config {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("configs")
+}
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  subject   String?
+  message   String   @db.Text
+  userId    Int?     @map("user_id")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contact_messages")
 }
 
 model Testimonial {

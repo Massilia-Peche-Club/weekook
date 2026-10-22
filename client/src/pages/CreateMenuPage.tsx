@@ -63,7 +63,6 @@ export default function CreateMenuPage() {
   const [kookDescription, setKookDescription] = useState('');
   const [kookPrice, setKookPrice] = useState('');
   const [kookExtraGuestPrice, setKookExtraGuestPrice] = useState('');
-  const [kookDuration, setKookDuration] = useState('');
   const [kookMaxParticipants, setKookMaxParticipants] = useState('');
 
   // Champs partagés COURS + KOOK — Ingrédients
@@ -222,7 +221,7 @@ export default function CreateMenuPage() {
           extraGuestPriceInCents: isKours
             ? Math.round(parseFloat(koursExtraGuestPrice) * 100)
             : (kookExtraGuestPrice ? Math.round(parseFloat(kookExtraGuestPrice) * 100) : undefined),
-          durationMinutes: parseInt(isKours ? koursDuration : kookDuration),
+          durationMinutes: isKours ? parseInt(koursDuration) : 0, // durée désactivée pour les KOOK (MVP)
           maxGuests: parseInt(isKours ? koursMaxParticipants : kookMaxParticipants),
           allergens: allergens,
           specialty: specialties.length > 0 ? specialties : undefined,
@@ -612,21 +611,8 @@ export default function CreateMenuPage() {
                 </div>
               </div>
 
-              {/* Durée + Max convives */}
+              {/* Max convives */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                <div>
-                  <label className={labelClass}>
-                    Durée totale (minutes) <span className="text-[#c1a0fd]">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={kookDuration}
-                    onChange={(e) => setKookDuration(e.target.value)}
-                    placeholder="180"
-                    className={inputClass}
-                  />
-                </div>
                 <div>
                   <label className={labelClass}>
                     Max convives <span className="text-[#c1a0fd]">*</span>

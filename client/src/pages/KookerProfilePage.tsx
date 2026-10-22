@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { hasDuration } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { usePageTiming } from '@/hooks/usePageTiming';
@@ -972,10 +973,12 @@ export default function KookerProfilePage() {
                               </div>
                             )}
                             <div className="grid grid-cols-2 gap-4 mb-3">
+                              {hasDuration(service.types, service.duration) && (
                               <div>
                                 <span className="block text-[11px] font-semibold text-[#9ca3af] uppercase mb-0.5">Durée</span>
                                 <span className="text-[14px] text-[#111125]">{formatDuration(service.duration)}</span>
                               </div>
+                              )}
                               <div>
                                 <span className="block text-[11px] font-semibold text-[#9ca3af] uppercase mb-0.5">Participants max</span>
                                 <span className="text-[14px] text-[#111125]">{service.maxGuests} pers.</span>

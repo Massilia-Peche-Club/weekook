@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '@/lib/api';
+import CityAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/CityAutocomplete';
+import { hasDuration } from '@/lib/utils';
 import { toast } from 'sonner';
 import PlanningTab from '@/components/dashboard/PlanningTab';
 import { usePageTiming } from '@/hooks/usePageTiming';
@@ -73,6 +75,9 @@ interface KookerProfile {
   experience: string;
   phone: string;
   address: string;
+  latitude: number | null;
+  longitude: number | null;
+  serviceRadiusKm: number;
 }
 
 interface KookerApiProfile {
@@ -80,6 +85,9 @@ interface KookerApiProfile {
   bio: string;
   specialties: string;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
+  serviceRadiusKm: number;
   type: string;
   experience: string;
   address: string;
@@ -219,6 +227,9 @@ const KookerDashboardPage = () => {
     experience: '',
     phone: '',
     address: '',
+    latitude: null,
+    longitude: null,
+    serviceRadiusKm: 30,
   });
   const [originalProfile, setOriginalProfile] = useState<KookerProfile | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +339,9 @@ const KookerDashboardPage = () => {
           experience: p.experience || '',
           phone: p.user?.phone || '',
           address: p.address || '',
+          latitude: p.latitude ?? null,
+          longitude: p.longitude ?? null,
+          serviceRadiusKm: p.serviceRadiusKm ?? 30,
         };
         setProfile(parsed);
         setOriginalProfile(parsed);
@@ -535,6 +549,10 @@ const KookerDashboardPage = () => {
         bio: profile.bio,
         specialties: profile.specialties,
         city: profile.city,
+        ...(profile.latitude !== null && profile.longitude !== null
+          ? { latitude: profile.latitude, longitude: profile.longitude }
+          : {}),
+        serviceRadiusKm: profile.serviceRadiusKm,
         type: [profile.type],
         experience: profile.experience,
         address: profile.address,
@@ -1226,10 +1244,12 @@ const KookerDashboardPage = () => {
                                 <p className="text-[13px] text-[#111125]/60 leading-relaxed mb-4">{service.description}</p>
                               )}
                               <div className="grid grid-cols-2 gap-4">
+                                {hasDuration(service.type, service.durationMinutes) && (
                                 <div>
                                   <p className="text-[11px] text-[#111125]/40 font-medium mb-0.5">Durée</p>
                                   <p className="text-[13px] font-semibold text-[#111125]">{service.durationMinutes} min</p>
                                 </div>
+                                )}
                                 <div>
                                   <p className="text-[11px] text-[#111125]/40 font-medium mb-0.5">{isKours ? 'Participants max' : 'Convives max'}</p>
                                   <p className="text-[13px] font-semibold text-[#111125]">{service.maxGuests} pers.</p>
@@ -1458,12 +1478,26 @@ const KookerDashboardPage = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-medium text-[#111125] mb-1.5">Ville</label>
-                        <input
-                          type="text"
+                        <CityAutocomplete
                           value={profile.city}
-                          onChange={(e) => setProfile(prev => ({ ...prev, city: e.target.value }))}
+                          onChange={(text) => setProfile(prev => ({ ...prev, city: text, latitude: null, longitude: null }))}
+                          onSelect={(place) => setProfile(prev => ({ ...prev, city: place.city, latitude: place.latitude, longitude: place.longitude }))}
                           className="w-full h-[48px] px-4 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20 transition-all"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-[13px] font-medium text-[#111125] mb-1.5">Zone d'intervention</label>
+                        <select
+                          value={profile.serviceRadiusKm}
+                          onChange={(e) => setProfile(prev => ({ ...prev, serviceRadiusKm: parseInt(e.target.value) }))}
+                          className="w-full h-[48px] px-4 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20 transition-all appearance-none cursor-pointer"
+                        >
+                          {SERVICE_RADIUS_OPTIONS.map((km) => (
+                            <option key={km} value={km}>
+                              {profile.city ? `${profile.city} et ${km} km autour` : `${km} km autour de ma ville`}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-[13px] font-medium text-[#111125] mb-1.5">Expérience</label>

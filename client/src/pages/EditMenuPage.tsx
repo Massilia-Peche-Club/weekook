@@ -64,7 +64,6 @@ export default function EditMenuPage() {
   const [kookDescription, setKookDescription] = useState('');
   const [kookPrice, setKookPrice] = useState('');
   const [kookExtraGuestPrice, setKookExtraGuestPrice] = useState('');
-  const [kookDuration, setKookDuration] = useState('');
   const [kookMaxParticipants, setKookMaxParticipants] = useState('');
 
   // Champs partagés — Ingrédients (fournis par le client)
@@ -135,7 +134,6 @@ export default function EditMenuPage() {
             setKookDescription(s.description || '');
             setKookPrice(String(s.priceInCents / 100));
             setKookExtraGuestPrice(s.extraGuestPriceInCents != null ? String(s.extraGuestPriceInCents / 100) : '');
-            setKookDuration(String(s.durationMinutes || ''));
             setKookMaxParticipants(String(s.maxGuests || ''));
           }
 
@@ -280,7 +278,7 @@ export default function EditMenuPage() {
         extraGuestPriceInCents: isKours
           ? (koursExtraGuestPrice ? Math.round(parseFloat(koursExtraGuestPrice) * 100) : undefined)
           : (kookExtraGuestPrice ? Math.round(parseFloat(kookExtraGuestPrice) * 100) : undefined),
-        durationMinutes: parseInt(isKours ? koursDuration : kookDuration),
+        durationMinutes: isKours ? parseInt(koursDuration) : 0, // durée désactivée pour les KOOK (MVP)
         maxGuests: parseInt(isKours ? koursMaxParticipants : kookMaxParticipants),
         allergens: allergens,
         specialty: specialties.length > 0 ? specialties : [],
@@ -638,19 +636,8 @@ export default function EditMenuPage() {
                 </div>
               </div>
 
-              {/* Durée + Max convives */}
+              {/* Max convives */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                <div>
-                  <label className={labelClass}>Durée (minutes)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={kookDuration}
-                    onChange={(e) => setKookDuration(e.target.value)}
-                    placeholder="180"
-                    className={inputClass}
-                  />
-                </div>
                 <div>
                   <label className={labelClass}>Max convives</label>
                   <input

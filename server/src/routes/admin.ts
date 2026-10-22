@@ -488,6 +488,41 @@ router.delete('/testimonials/:id', async (req: Request, res: Response, next: Nex
   }
 });
 
+// ── Contact messages ──────────────────────────────────────────────────────────
+
+// GET /contact-messages
+router.get('/contact-messages', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const messages = await prisma.contactMessage.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ success: true, data: messages });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /contact-messages/:id
+router.put('/contact-messages/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { read } = req.body;
+    const message = await prisma.contactMessage.update({ where: { id }, data: { read: !!read } });
+    res.json({ success: true, data: message });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /contact-messages/:id
+router.delete('/contact-messages/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    await prisma.contactMessage.delete({ where: { id } });
+    res.json({ success: true, data: { message: 'Message supprimé' } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 // GET /config

@@ -1,3 +1,4 @@
+import { hasDuration } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Star } from 'lucide-react';
 
@@ -110,7 +111,7 @@ export default function ServiceCard({
         {/* Price + Duration */}
         <div className="flex items-center justify-between pt-1">
           <span className="text-[16px] font-bold text-[#111125]">{price.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €</span>
-          <span className="text-[12px] text-[#9ca3af]">{durationLabel}</span>
+          {hasDuration(type, durationMinutes) && <span className="text-[12px] text-[#9ca3af]">{durationLabel}</span>}
         </div>
       </div>
     </Link>

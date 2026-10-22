@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { hasDuration } from '@/lib/utils';
 
 interface ServiceKooker {
   user: { id: number; firstName: string; lastName: string };
@@ -85,7 +86,7 @@ export default function AdminServicesPage() {
                     <td className="px-4 py-3 font-medium text-[#111125]">
                       {(s.priceInCents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{s.durationMinutes} min</td>
+                    <td className="px-4 py-3 text-gray-600">{hasDuration(s.type, s.durationMinutes) ? `${s.durationMinutes} min` : '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{s._count.bookings}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>

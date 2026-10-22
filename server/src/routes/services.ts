@@ -45,6 +45,9 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       maxPrice,
       featured,
       date,
+      lat,
+      lng,
+      radius,
       page = '1',
       limit = '12',
     } = req.query as Record<string, string>;
@@ -56,6 +59,31 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
     const kookerFilter: Record<string, unknown> = { active: true };
     if (featured === 'true') kookerFilter.featured = true;
     if (city) kookerFilter.city = { contains: city };
+
+    // Recherche par localisation (#82) : un kooker ressort si le lieu recherché est
+    // dans sa zone d'intervention, ou à moins de `radius` km (distance que le client
+    // accepte de parcourir, ex : Kours chez le kooker).
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    let distanceByKooker: Map<number, number> | null = null;
+    if (!isNaN(latNum) && !isNaN(lngNum)) {
+      const clientRadius = Math.min(200, Math.max(0, parseInt(radius) || 0));
+      const rows = await prisma.$queryRaw<{ id: number; distance: number }[]>`
+        SELECT id, distance FROM (
+          SELECT id, service_radius_km,
+            6371 * 2 * ASIN(SQRT(
+              POWER(SIN(RADIANS(latitude - ${latNum}) / 2), 2) +
+              COS(RADIANS(${latNum})) * COS(RADIANS(latitude)) *
+              POWER(SIN(RADIANS(longitude - ${lngNum}) / 2), 2)
+            )) AS distance
+          FROM kooker_profiles
+          WHERE active = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+        ) k
+        WHERE distance <= GREATEST(service_radius_km, ${clientRadius})
+      `;
+      distanceByKooker = new Map(rows.map((r) => [Number(r.id), Number(r.distance)]));
+      kookerFilter.id = { in: [...distanceByKooker.keys()] };
+    }
     if (specialty) kookerFilter.specialties = { string_contains: specialty };
     if (date) {
       const dateObj = new Date(date);
@@ -68,7 +96,8 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       active: true,
       kookerProfile: kookerFilter,
     };
-    if (type) serviceWhere.type = { string_contains: type };
+    // `type` est stocké en tableau JSON (["KOOK"], ["COURS"], ["KOOK","COURS"])
+    if (type) serviceWhere.type = { array_contains: [type] };
     if (minPrice || maxPrice) {
       const priceFilter: Record<string, number> = {};
       if (minPrice) priceFilter.gte = Math.round(parseFloat(minPrice) * 100);
@@ -118,7 +147,9 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
     res.json({
       success: true,
       data: {
-        services,
+        services: distanceByKooker
+          ? services.map((s) => ({ ...s, distanceKm: Math.round((distanceByKooker!.get(s.kookerProfileId) ?? 0) * 10) / 10 }))
+          : services,
         pagination: {
           page: pageNum,
           limit: limitNum,

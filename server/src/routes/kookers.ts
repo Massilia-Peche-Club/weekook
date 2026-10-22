@@ -5,6 +5,19 @@ import { authenticate, requireKooker, invalidateAuthCache } from '../middleware/
 import { validate } from '../middleware/validate.js';
 import { becomeKookerSchema, updateKookerProfileSchema } from '../schemas/kooker.js';
 import { AppError, NotFoundError } from '../utils/errors.js';
+import { geocodeCity } from '../lib/geo.js';
+
+// Coordonnées de la ville : celles envoyées par l'autocomplétion, sinon géocodage serveur
+async function resolveCoordinates(city: string, latitude?: number, longitude?: number) {
+  if (latitude !== undefined && longitude !== undefined) return { latitude, longitude };
+  try {
+    const place = await geocodeCity(city);
+    if (place) return { latitude: place.latitude, longitude: place.longitude };
+  } catch (e) {
+    console.error('[geo] Géocodage impossible:', e);
+  }
+  return { latitude: null, longitude: null };
+}
 
 const router = Router();
 
@@ -323,7 +336,8 @@ router.post(
         throw new AppError('Vous êtes déjà kooker', 409);
       }
 
-      const { bio, specialties, type, city, experience, isCompany } = req.body;
+      const { bio, specialties, type, city, experience, isCompany, latitude, longitude, serviceRadiusKm } = req.body;
+      const coords = await resolveCoordinates(city, latitude, longitude);
 
       const kookerProfile = await prisma.kookerProfile.create({
         data: {
@@ -332,6 +346,8 @@ router.post(
           specialties,
           type,
           city,
+          ...coords,
+          ...(serviceRadiusKm !== undefined ? { serviceRadiusKm } : {}),
           experience,
           isCompany: isCompany ?? false,
           active: false,
@@ -366,13 +382,17 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const kookerProfileId = req.user!.kookerProfileId!;
-      const { bio, specialties, type, city, experience, address, isCompany } = req.body;
+      const { bio, specialties, type, city, experience, address, isCompany, latitude, longitude, serviceRadiusKm } = req.body;
 
       const data: Record<string, unknown> = {};
       if (bio !== undefined) data.bio = bio;
       if (specialties !== undefined) data.specialties = specialties;
       if (type !== undefined) data.type = type;
-      if (city !== undefined) data.city = city;
+      if (city !== undefined) {
+        data.city = city;
+        Object.assign(data, city.trim() ? await resolveCoordinates(city, latitude, longitude) : { latitude: null, longitude: null });
+      }
+      if (serviceRadiusKm !== undefined) data.serviceRadiusKm = serviceRadiusKm;
       if (experience !== undefined) data.experience = experience;
       if (address !== undefined) data.address = address;
       if (isCompany !== undefined) data.isCompany = isCompany;

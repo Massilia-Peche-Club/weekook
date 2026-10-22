@@ -36,6 +36,7 @@ const AdminTestimonialsPage = lazy(() => import('@/pages/admin/AdminTestimonials
 const AdminConfigPage = lazy(() => import('@/pages/admin/AdminConfigPage').then(m => ({ default: m.default })));
 const AdminServicesPage = lazy(() => import('@/pages/admin/AdminServicesPage').then(m => ({ default: m.default })));
 const AdminReviewsPage = lazy(() => import('@/pages/admin/AdminReviewsPage').then(m => ({ default: m.default })));
+const AdminContactMessagesPage = lazy(() => import('@/pages/admin/AdminContactMessagesPage').then(m => ({ default: m.default })));
 const AdminFaqPage = lazy(() => import('@/pages/admin/AdminFaqPage').then(m => ({ default: m.default })));
 const VerifyEmailPage = lazy(() => import('@/pages/VerifyEmailPage').then(m => ({ default: m.default })));
 const ConfirmEmailChangePage = lazy(() => import('@/pages/ConfirmEmailChangePage').then(m => ({ default: m.default })));
@@ -106,6 +107,7 @@ export function AppRouter() {
           <Route path="temoignages" element={<AdminTestimonialsPage />} />
           <Route path="avis" element={<AdminReviewsPage />} />
           <Route path="faq" element={<AdminFaqPage />} />
+          <Route path="messages-contact" element={<AdminContactMessagesPage />} />
           <Route path="configuration" element={<AdminConfigPage />} />
         </Route>
       </Routes>

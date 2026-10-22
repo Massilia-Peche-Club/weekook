@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import CityAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/CityAutocomplete';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +20,9 @@ export default function BecomeKookerPage() {
     phone: '',
     address: '',
     city: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
+    serviceRadiusKm: 30,
     description: '',
     specialties: [] as string[],
     experience: 0,
@@ -71,6 +75,10 @@ export default function BecomeKookerPage() {
         specialties: formData.specialties,
         type: ['KOOK', 'COURS'],
         city: formData.city,
+        ...(formData.latitude !== null && formData.longitude !== null
+          ? { latitude: formData.latitude, longitude: formData.longitude }
+          : {}),
+        serviceRadiusKm: formData.serviceRadiusKm,
         experience: formData.experience + ' ans',
         isCompany: formData.isCompany,
       });
@@ -154,16 +162,40 @@ export default function BecomeKookerPage() {
                     <Label className="text-[14px] font-semibold text-[#111125] mb-2">
                       Ville
                     </Label>
-                    <Input
-                      type="text"
+                    <CityAutocomplete
                       placeholder="Marseille"
                       value={formData.city}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, city: e.target.value }))
+                      onChange={(text) =>
+                        setFormData((prev) => ({ ...prev, city: text, latitude: null, longitude: null }))
+                      }
+                      onSelect={(place) =>
+                        setFormData((prev) => ({ ...prev, city: place.city, latitude: place.latitude, longitude: place.longitude }))
                       }
                       required
-                      className="h-[48px] bg-white border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus-visible:border-[#c1a0fd] focus-visible:ring-[#c1a0fd]/20"
+                      className="w-full h-[48px] px-3 bg-white border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20"
                     />
+                  </div>
+
+                  <div>
+                    <Label className="text-[14px] font-semibold text-[#111125] mb-2">
+                      Zone d'intervention
+                    </Label>
+                    <select
+                      value={formData.serviceRadiusKm}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, serviceRadiusKm: parseInt(e.target.value) }))
+                      }
+                      className="w-full h-[48px] px-3 bg-white border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20 cursor-pointer"
+                    >
+                      {SERVICE_RADIUS_OPTIONS.map((km) => (
+                        <option key={km} value={km}>
+                          {formData.city ? `${formData.city} et ${km} km autour` : `${km} km autour de ma ville`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[12px] text-[#828294] mt-1.5">
+                      Vous apparaîtrez dans les recherches des clients situés dans cette zone.
+                    </p>
                   </div>
 
                   <div>

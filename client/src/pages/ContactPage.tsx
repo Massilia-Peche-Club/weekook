@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
 import { usePageTiming } from '@/hooks/usePageTiming';
 
 export default function ContactPage() {
@@ -19,12 +20,15 @@ export default function ContactPage() {
     if (!name.trim() || !email.trim() || !message.trim()) return;
     setSending(true);
     try {
-      // Envoi simulé — à connecter à un endpoint /contact ou service email
-      await new Promise((r) => setTimeout(r, 800));
+      await api.post('/contact', {
+        name: name.trim(),
+        email: email.trim(),
+        subject: subject.trim() || undefined,
+        message: message.trim(),
+      });
       setSent(true);
-      toast.success('Message envoyé ! Nous vous répondrons dans les plus brefs délais.');
-    } catch {
-      toast.error('Erreur lors de l\'envoi. Réessayez.');
+    } catch (err: any) {
+      toast.error(err?.error || 'Erreur lors de l\'envoi. Réessayez.');
     } finally {
       setSending(false);
     }

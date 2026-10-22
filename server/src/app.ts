@@ -21,6 +21,9 @@ import uploadRoutes from './routes/upload.js';
 import adminRoutes from './routes/admin.js';
 import stripeRoutes from './routes/stripe.js';
 import metricsRoutes from './routes/metrics.js';
+import contactRoutes from './routes/contact.js';
+import geoRoutes from './routes/geo.js';
+import { backfillKookerCoordinates } from './lib/geo.js';
 
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -61,7 +64,7 @@ app.use(
 
 // ── Permissions-Policy header (BUG-010: not added by Helmet by default) ──
 app.use((_req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
   next();
 });
 
@@ -114,6 +117,8 @@ app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/stripe', stripeRoutes);
 app.use('/api/v1/metrics', metricsRoutes);
+app.use('/api/v1/contact', contactRoutes);
+app.use('/api/v1/geo', geoRoutes);
 
 // ── Error handler ──
 app.use(errorHandler);
@@ -162,6 +167,8 @@ async function start() {
   app.listen(env.PORT, () => {
     console.log(`Server running on http://localhost:${env.PORT}`);
     startBookingCompletionCron();
+    // Coordonnées GPS des kookers créés avant la recherche par zone (#82)
+    backfillKookerCoordinates().catch((e) => console.error('[geo] backfill failed:', e));
     // Signal PM2 that the worker is ready (graceful reload)
     process.send?.('ready');
 

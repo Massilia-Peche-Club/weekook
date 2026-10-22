@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { hasDuration } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -523,7 +524,7 @@ export default function BookingDetailPage() {
                   </span>
                 </div>
               ))}
-              {booking.service.durationMinutes && (
+              {hasDuration(booking.service.type, booking.service.durationMinutes) && (
                 <div className="flex items-center justify-between px-5 py-3.5">
                   <div className="flex items-center gap-3">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

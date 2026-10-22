@@ -20,7 +20,7 @@ export const createServiceSchema = z.object({
   description: z.string().optional(),
   type: z.array(z.string()).min(1, 'Au moins un type est requis').transform(normalizeTypes),
   priceInCents: z.number().min(0, 'Le prix doit etre positif'),
-  durationMinutes: z.number().min(1, 'La duree doit etre au moins 1 minute'),
+  durationMinutes: z.number().min(0), // 0 pour les KOOK (durée désactivée en MVP)
   minGuests: z.number().int().min(1).optional(),
   maxGuests: z.number().int().min(1, 'Le nombre de convives doit être au moins 1').optional().default(1),
   allergens: z.array(z.string()).optional(),
@@ -49,7 +49,7 @@ export const updateServiceSchema = z.object({
   description: z.string().optional(),
   type: z.array(z.string()).optional().transform((t) => (t ? normalizeTypes(t) : t)),
   priceInCents: z.number().min(0).optional(),
-  durationMinutes: z.number().min(1).optional(),
+  durationMinutes: z.number().min(0).optional(),
   minGuests: z.number().optional(),
   maxGuests: z.number().optional(),
   active: z.boolean().optional(),
