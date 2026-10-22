@@ -84,7 +84,13 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       distanceByKooker = new Map(rows.map((r) => [Number(r.id), Number(r.distance)]));
       kookerFilter.id = { in: [...distanceByKooker.keys()] };
     }
-    if (specialty) kookerFilter.specialties = { string_contains: specialty };
+    // Spécialité : celle du kooker ou celle de la prestation (listes JSON)
+    const specialtyFilter = specialty
+      ? [
+          { kookerProfile: { specialties: { array_contains: [specialty] } } },
+          { specialty: { array_contains: [specialty] } },
+        ]
+      : null;
     if (date) {
       const dateObj = new Date(date);
       if (!isNaN(dateObj.getTime())) {
@@ -96,6 +102,8 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       active: true,
       kookerProfile: kookerFilter,
     };
+    // AND : la recherche texte (q) utilise déjà OR
+    if (specialtyFilter) serviceWhere.AND = [{ OR: specialtyFilter }];
     // `type` est stocké en tableau JSON (["KOOK"], ["COURS"], ["KOOK","COURS"])
     if (type) serviceWhere.type = { array_contains: [type] };
     if (minPrice || maxPrice) {
@@ -105,12 +113,17 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       serviceWhere.priceInCents = priceFilter;
     }
     if (q) {
+      // Spécialités kooker (liste JSON) : recherche partielle, insensible à la casse
+      const specialtyMatches = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM kooker_profiles
+        WHERE LOWER(CAST(specialties AS CHAR)) LIKE CONCAT('%', LOWER(${q}), '%')
+      `;
       serviceWhere.OR = [
         { title: { contains: q } },
         { description: { contains: q } },
         { kookerProfile: { user: { firstName: { contains: q } } } },
         { kookerProfile: { user: { lastName: { contains: q } } } },
-        { kookerProfile: { specialties: { string_contains: q } } },
+        { kookerProfileId: { in: specialtyMatches.map((r) => Number(r.id)) } },
       ];
     }
 

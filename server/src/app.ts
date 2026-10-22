@@ -152,12 +152,30 @@ async function seedConfig() {
   );
 }
 
+// Anciens profils (seed) : spécialités enregistrées en texte JSON au lieu d'une liste,
+// ce qui les rendait introuvables par le filtre spécialité. Conversion en liste.
+async function normalizeKookerSpecialties() {
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT id FROM kooker_profiles WHERE JSON_TYPE(specialties) = 'STRING'
+  `;
+  for (const { id } of rows) {
+    const profile = await prisma.kookerProfile.findUnique({ where: { id }, select: { specialties: true } });
+    try {
+      const parsed = JSON.parse(profile?.specialties as string);
+      if (Array.isArray(parsed)) {
+        await prisma.kookerProfile.update({ where: { id }, data: { specialties: parsed } });
+      }
+    } catch { /* valeur non convertible : laissée telle quelle */ }
+  }
+}
+
 // ── Start server ──
 async function start() {
   // Connect to DB before accepting any HTTP traffic
   try {
     await prisma.$connect();
     await seedConfig();
+    await normalizeKookerSpecialties();
     console.log('Database connection ready');
   } catch (e) {
     console.error('Database connection failed:', e);
