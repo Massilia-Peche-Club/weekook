@@ -1841,17 +1841,26 @@ APP_URL=https://dev.weekook.com
 - **Email**: Resend API with templates for bookings, password resets, reviews
 - **Admin**: Comprehensive dashboard for KPIs, user management, content moderation
 
-**31 API endpoints** cover:
-- Auth (register/login/logout/me/password-reset)
-- Kookers (search/profile/become/stats)
-- Services (CRUD + images, recherche par lieu / zone d'intervention)
-- Géolocalisation (communes, position, adresse « chez moi »)
-- Contact (formulaire public + gestion admin)
-- Bookings (full lifecycle with Stripe integration)
-- Reviews (user→kooker + kooker→user, admin moderation)
-- Messages (internal messaging with email notifications)
-- Favorites, Availability, Testimonials
-- Admin functions (config, stats, KPIs, charts)
+**85 API endpoints** (décompte des routes déclarées dans `server/src/routes/*.ts`, au 2026-10-23) :
+
+| Préfixe | Nb | Couverture |
+|---------|----|-----------|
+| `/auth` | 8 | register, login, logout, me, forgot/reset password, vérification email |
+| `/kookers` | 5 | recherche, profil public, stats dashboard, devenir kooker, profil |
+| `/services` | 7 | recherche (lieu / zone d'intervention), CRUD, image de carte |
+| `/bookings` | 9 | cycle de vie complet avec Stripe |
+| `/reviews` | 4 | user→kooker, kooker→user, consultation |
+| `/messages` | 6 | messagerie interne + notifications email |
+| `/favorites` | 3 | liste, ajout, retrait |
+| `/availability` | 2 | lecture, mise à jour batch |
+| `/testimonials` | 2 | lecture, soumission |
+| `/users` | 5 | profil, avatar, profil d'accueil, changement d'email |
+| `/upload` | 1 | upload de fichier |
+| `/geo` | 3 | communes, position, adresse « chez moi » |
+| `/contact` | 1 | formulaire de contact public |
+| `/stripe` | 4 | config publique, Connect onboarding, statut, webhook |
+| `/metrics` | 1 | temps de chargement des pages |
+| `/admin` | 24 | config, stats, KPIs, graphiques, utilisateurs, kookers, avis, réservations, services, témoignages, messages de contact |
 
 **Key Features**:
 - Rate limiting on auth endpoints
