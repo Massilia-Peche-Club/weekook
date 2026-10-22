@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '@/lib/api';
+import SpecialtyPicker from '@/components/common/SpecialtyPicker';
 import CityAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/CityAutocomplete';
 import { hasDuration } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -100,12 +101,6 @@ interface KookerApiProfile {
   };
   [key: string]: unknown;
 }
-
-const allSpecialties = [
-  'Méditerranéen', 'Provençal', 'Italien', 'Français', 'Japonais', 'Thaïlandais',
-  'Indien', 'Mexicain', 'Végétarien', 'Vegan', 'Sans gluten', 'Bio',
-  'Pâtisserie', 'Brunch', 'Apéritif', 'Gastronomique',
-];
 
 // ────────────────────────── Helper Functions ──────────────────────────
 
@@ -575,14 +570,6 @@ const KookerDashboardPage = () => {
     }
   };
 
-  const toggleSpecialty = (specialty: string) => {
-    setProfile(prev => ({
-      ...prev,
-      specialties: prev.specialties.includes(specialty)
-        ? prev.specialties.filter(s => s !== specialty)
-        : [...prev.specialties, specialty],
-    }));
-  };
 
   const filteredBookings = useMemo(() => {
     const filtered = bookingFilter === 'all' ? bookings : bookings.filter(b => b.status === bookingFilter);
@@ -1441,21 +1428,10 @@ const KookerDashboardPage = () => {
                   <div className="bg-white rounded-[20px] p-6 shadow-sm">
                     <h4 className="text-[15px] font-semibold text-[#111125] mb-2">Spécialités</h4>
                     <p className="text-[13px] text-[#111125]/50 mb-4">Sélectionnez vos spécialités culinaires.</p>
-                    <div className="flex flex-wrap gap-2">
-                      {allSpecialties.map(specialty => (
-                        <button
-                          key={specialty}
-                          onClick={() => toggleSpecialty(specialty)}
-                          className={`px-3.5 py-2 rounded-[10px] text-[13px] font-medium transition-all ${
-                            profile.specialties.includes(specialty)
-                              ? 'bg-[#c1a0fd] text-white'
-                              : 'bg-[#f2f4fc] text-[#111125]/60 hover:bg-[#e8eaf5] hover:text-[#111125]'
-                          }`}
-                        >
-                          {specialty}
-                        </button>
-                      ))}
-                    </div>
+                    <SpecialtyPicker
+                      selected={profile.specialties}
+                      onChange={(specialties) => setProfile(prev => ({ ...prev, specialties }))}
+                    />
                   </div>
 
                   {/* Info */}

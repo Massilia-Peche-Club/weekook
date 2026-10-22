@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import SpecialtyPicker from '@/components/common/SpecialtyPicker';
 import CityAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/CityAutocomplete';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ChefHat, MapPin, Clock, Plus, X, Users } from 'lucide-react';
+import { ChefHat, MapPin, Clock, Users } from 'lucide-react';
 import { usePageTiming } from '@/hooks/usePageTiming';
 
 export default function BecomeKookerPage() {
@@ -31,7 +32,6 @@ export default function BecomeKookerPage() {
     isCompany: false,
   });
 
-  const [newSpecialty, setNewSpecialty] = useState('');
 
   useEffect(() => {
     document.title = 'Devenir Kooker - Weekook';
@@ -40,31 +40,6 @@ export default function BecomeKookerPage() {
       navigate('/kooker-dashboard', { replace: true });
     }
   }, [user, navigate]);
-
-  const addSpecialty = () => {
-    const trimmed = newSpecialty.trim();
-    if (trimmed && !formData.specialties.includes(trimmed)) {
-      setFormData((prev) => ({
-        ...prev,
-        specialties: [...prev.specialties, trimmed],
-      }));
-      setNewSpecialty('');
-    }
-  };
-
-  const removeSpecialty = (specialty: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      specialties: prev.specialties.filter((s) => s !== specialty),
-    }));
-  };
-
-  const handleSpecialtyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addSpecialty();
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,43 +237,10 @@ export default function BecomeKookerPage() {
                     <Label className="text-[14px] font-semibold text-[#111125] mb-2">
                       Spécialités
                     </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        placeholder="Ex : Cuisine provençale"
-                        value={newSpecialty}
-                        onChange={(e) => setNewSpecialty(e.target.value)}
-                        onKeyDown={handleSpecialtyKeyDown}
-                        className="h-[48px] flex-1 bg-white border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus-visible:border-[#c1a0fd] focus-visible:ring-[#c1a0fd]/20"
-                      />
-                      <button
-                        type="button"
-                        onClick={addSpecialty}
-                        className="h-[48px] w-[48px] flex-shrink-0 flex items-center justify-center bg-[#c1a0fd] hover:bg-[#b090ed] text-[#111125] rounded-[8px] transition-colors"
-                      >
-                        <Plus className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {formData.specialties.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {formData.specialties.map((specialty) => (
-                          <span
-                            key={specialty}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-[rgba(218,198,254,0.48)] text-violet-600 text-[14px] rounded-[12px]"
-                          >
-                            {specialty}
-                            <button
-                              type="button"
-                              onClick={() => removeSpecialty(specialty)}
-                              className="hover:text-[#111125] transition-colors"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <SpecialtyPicker
+                      selected={formData.specialties}
+                      onChange={(specialties) => setFormData((prev) => ({ ...prev, specialties }))}
+                    />
                   </div>
 
                   {/* Experience */}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
+import SpecialtyPicker from '@/components/common/SpecialtyPicker';
 import { toast } from 'sonner';
 import { compressImage } from '@/lib/compressImage';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -38,7 +39,6 @@ export default function EditMenuPage() {
   const { id } = useParams();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [availableSpecialties, setAvailableSpecialties] = useState<string[]>([]);
   const [availableUnits, setAvailableUnits] = useState<string[]>(['g', 'kg', 'mL', 'L', 'pcs', 'cs', 'cc', 'pincée', 'tranche(s)', 'unité(s)']);
   const [tooltipFruitsDesMer, setTooltipFruitsDesMer] = useState("produits de la mer à l'exception des poissons");
   const [tooltipCommission, setTooltipCommission] = useState("La commission Weekook est prélevée sur chaque réservation. Elle couvre les frais de la plateforme, le paiement sécurisé et l'assistance client.");
@@ -85,7 +85,6 @@ export default function EditMenuPage() {
   // Common fields
   const [photos, setPhotos] = useState<string[]>([]);
   const [specialties, setSpecialties] = useState<string[]>([]);
-  const [newSpecialty, setNewSpecialty] = useState('');
   const [allergens, setAllergens] = useState<string[]>([]);
   const [isVegetarian, setIsVegetarian] = useState(false);
   const [isVegan, setIsVegan] = useState(false);
@@ -101,7 +100,6 @@ export default function EditMenuPage() {
 
     api.get<{ commissionKours: number; commissionKook: number; specialties: string[]; kookBaseGuests: number; units: string[]; tooltipFruitsDesMer?: string; tooltipCommission?: string }>('/admin/config/public').then(res => {
       if (res.success && res.data) {
-        if (Array.isArray(res.data.specialties)) setAvailableSpecialties(res.data.specialties);
         if (typeof res.data.commissionKours === 'number') setCommissionKours(res.data.commissionKours);
         if (typeof res.data.commissionKook === 'number') setCommissionKook(res.data.commissionKook);
         if (typeof res.data.kookBaseGuests === 'number') setKookBaseGuests(res.data.kookBaseGuests);
@@ -192,19 +190,6 @@ export default function EditMenuPage() {
   const isKookDisabled = serviceTypes.includes('COURS') && serviceTypes.includes('KOOK') && !isKoursComplete;
 
   // ────────────────────────── Menu Items Helpers ──────────────────────────
-
-  // ────────────────────────── Specialties ──────────────────────────
-
-  const addSpecialty = () => {
-    const val = newSpecialty.trim();
-    if (!val || specialties.includes(val)) return;
-    setSpecialties((prev) => [...prev, val]);
-    setNewSpecialty('');
-  };
-
-  const removeSpecialty = (s: string) => {
-    setSpecialties((prev) => prev.filter((x) => x !== s));
-  };
 
   // ────────────────────────── Photo Helpers ──────────────────────────
 
@@ -848,26 +833,9 @@ export default function EditMenuPage() {
 
               {/* Spécialités */}
               <p className="text-[14px] font-bold text-[#303044] mb-3">Spécialités</p>
-              {availableSpecialties.length > 0 ? (
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {availableSpecialties.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSpecialties((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])}
-                      className={`px-3 py-1.5 text-[13px] font-semibold rounded-[8px] transition-all cursor-pointer border ${
-                        specialties.includes(s)
-                          ? 'bg-[#c1a0fd] border-[#c1a0fd] text-white'
-                          : 'bg-white border-[#e0e2ef] text-[#303044] hover:border-[#c1a0fd] hover:text-[#c1a0fd]'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[13px] text-[#828294] mb-6">Aucune spécialité configurée — ajoutez-en depuis la page Admin.</p>
-              )}
+              <div className="mb-6">
+                <SpecialtyPicker selected={specialties} onChange={setSpecialties} />
+              </div>
 
               <div className="border-t border-[#f0f0f5] mb-6" />
 
