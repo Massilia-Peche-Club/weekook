@@ -1123,13 +1123,41 @@ Proxy vers les API publiques françaises (`server/src/lib/geo.ts`) : `geo.api.go
 
 ### STRIPE ROUTES (`/api/v1/stripe`)
 
+#### GET `/config` (Public)
+- **Returns**: `{ "publishableKey": "pk_..." }` (`STRIPE_PUBLISHABLE_KEY`) — utilisée par Stripe.js côté client
+
+#### POST `/connect/onboard` (Protected, Kooker Required)
+- **Logic**:
+  - Type de compte selon `kookerProfile.isCompany` : `company` ou `individual`
+  - Pas de compte Stripe → création d'un compte **Express** (FR, MCC 5812, capacités `card_payments` + `transfers`, metadata `kookerProfileId`) et enregistrement de `stripeAccountId`
+  - Compte existant dont le `business_type` ne correspond plus → nouveau compte créé, `stripeOnboardingComplete` remis à `false`
+  - Génère un lien d'onboarding (`refresh_url` = `/kooker-dashboard?stripe=refresh`, `return_url` = `/kooker-dashboard?stripe=return`)
+- **Returns**: `{ "url": "https://connect.stripe.com/..." }`
+- **Status Codes**: 200, 403 (not kooker), 503 (Stripe non configuré)
+
+#### GET `/connect/status` (Protected, Kooker Required)
+- **Returns**: `{ "connected": bool, "chargesEnabled": bool, "payoutsEnabled": bool, "onboardingComplete": bool }`
+- Sans compte Stripe (ou Stripe non configuré) → tout à `false`
+- Si `charges_enabled && payouts_enabled` et pas encore enregistré → `stripeOnboardingComplete = true` + tentative d'auto-validation du kooker (`tryAutoValidateKooker`)
+
 #### POST `/webhook` (Public - no auth)
-- **Signature Verification**: Verifies `stripe-signature` header
-- **Handles**: payment_intent.succeeded, charge.refunded
+- **Body**: brut (`express.raw`, déclaré avant le parser JSON)
+- **Signature Verification**: header `stripe-signature` + `STRIPE_WEBHOOK_SECRET` → 400 si absent ou invalide
+- **Handles**:
+  - `payment_intent.amount_capturable_updated` → booking `paymentStatus` `pending_authorization` → `authorized`
+  - `payment_intent.payment_failed` → booking `paymentStatus = failed`, `status = cancelled`
+  - `account.updated` (charges + payouts actifs) → `stripeOnboardingComplete = true` + auto-validation du kooker
+- **Returns**: `{ "received": true }` (erreurs de traitement journalisées, réponse 200 quand même)
 
 ---
 
 ### METRICS ROUTES (`/api/v1/metrics`)
+
+#### POST `/page-view` (Public - no auth)
+- **Body**: `{ "page": "string (tronqué à 100)", "loadTimeMs": number, "userId": number (optional) }`
+- **Creates**: PageViewLog (temps de chargement affichés dans Admin → tech-stats)
+- **Returns**: `{ "success": true }` — toujours, même en cas d'erreur (fire-and-forget) ; 400 si `page` ou `loadTimeMs` manquant
+- Appelée par le hook client `usePageTiming`
 
 ---
 
