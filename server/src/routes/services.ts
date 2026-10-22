@@ -4,6 +4,7 @@ import { authenticate, requireKooker } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createServiceSchema, updateServiceSchema } from '../schemas/service.js';
 import { NotFoundError, ForbiddenError, AppError } from '../utils/errors.js';
+import { assertAllowedSpecialties } from '../utils/specialties.js';
 
 const router = Router();
 
@@ -253,6 +254,8 @@ router.post(
         menuItems,
       } = req.body;
 
+      await assertAllowedSpecialties(specialty);
+
       const service = await prisma.service.create({
         data: {
           kookerProfileId,
@@ -417,6 +420,8 @@ router.put(
         extraGuestPriceInCents,
         menuItems,
       } = req.body;
+
+      await assertAllowedSpecialties(specialty, existing.specialty);
 
       const data: Record<string, unknown> = {};
       if (title !== undefined) data.title = title;

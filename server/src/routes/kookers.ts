@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { becomeKookerSchema, updateKookerProfileSchema } from '../schemas/kooker.js';
 import { AppError, NotFoundError } from '../utils/errors.js';
 import { geocodeCity } from '../lib/geo.js';
+import { assertAllowedSpecialties } from '../utils/specialties.js';
 
 // Coordonnées de la ville : celles envoyées par l'autocomplétion, sinon géocodage serveur
 async function resolveCoordinates(city: string, latitude?: number, longitude?: number) {
@@ -337,6 +338,7 @@ router.post(
       }
 
       const { bio, specialties, type, city, experience, isCompany, latitude, longitude, serviceRadiusKm } = req.body;
+      await assertAllowedSpecialties(specialties);
       const coords = await resolveCoordinates(city, latitude, longitude);
 
       const kookerProfile = await prisma.kookerProfile.create({
@@ -383,6 +385,10 @@ router.put(
     try {
       const kookerProfileId = req.user!.kookerProfileId!;
       const { bio, specialties, type, city, experience, address, isCompany, latitude, longitude, serviceRadiusKm } = req.body;
+      if (specialties !== undefined) {
+        const current = await prisma.kookerProfile.findUnique({ where: { id: kookerProfileId }, select: { specialties: true } });
+        await assertAllowedSpecialties(specialties, current?.specialties);
+      }
 
       const data: Record<string, unknown> = {};
       if (bio !== undefined) data.bio = bio;
