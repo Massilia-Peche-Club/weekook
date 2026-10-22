@@ -23,7 +23,7 @@
 
 ## Navigation
 
-La sidebar gauche (240 px) donne accès aux 9 sections :
+La sidebar gauche (240 px) donne accès aux 10 sections :
 
 | Icône | Section | URL |
 |-------|---------|-----|
@@ -35,6 +35,7 @@ La sidebar gauche (240 px) donne accès aux 9 sections :
 | Services | Catalogue des offres | `/admin/services` |
 | Témoignages | Modération | `/admin/temoignages` |
 | FAQ | Gestion des questions/réponses | `/admin/faq` |
+| Messages contact | Messages du formulaire de contact | `/admin/messages-contact` |
 | Configuration | Listes de valeurs | `/admin/configuration` |
 
 ---
@@ -218,10 +219,14 @@ Permet de modifier les listes de valeurs utilisées dans l'application **sans re
 
 | Liste | Utilisation |
 |-------|-------------|
-| **Spécialités culinaires** | Options dans le formulaire de création d'offre et les filtres de recherche |
-| **Villes disponibles** | Filtre de recherche par ville |
+| **Spécialités culinaires** | **Seules spécialités que les kookers peuvent choisir** (devenir kooker, profil kooker, création et modification d'offre) + filtre de recherche. Toute autre valeur est refusée par le serveur |
+| **Villes disponibles** | Ancienne liste — n'est plus utilisée : la recherche se fait par lieu et zone d'intervention des kookers |
 | **Allergènes** | Sélection dans la création d'offre |
-| **Types de service** | `KOOK` (cuisiner chez le client) / `KOURS` (cours de cuisine) |
+| **Types de service** | `KOOK` (cuisiner chez le client) / `COURS` (cours de cuisine) |
+
+> **Spécialités — bon à savoir**
+> - L'orthographe compte : « Italien » et « Italienne » sont deux spécialités différentes pour la recherche. Évitez les doublons proches.
+> - Retirer une spécialité de la liste ne l'efface pas des profils et offres qui l'utilisent déjà : elle y reste (affichée « hors liste ») jusqu'à ce que le kooker la retire. Elle ne peut plus être ajoutée à de nouveaux profils ou offres.
 
 ### Ajouter une valeur
 1. Cliquer dans le champ texte en bas de la liste
@@ -263,6 +268,27 @@ La page `/admin/faq` (AdminFaqPage) permet de gérer entièrement les questions 
 - L'ordre est sauvegardé automatiquement après chaque déplacement
 
 > Les modifications sont immédiatement visibles sur la page FAQ publique.
+
+---
+
+## Messages contact
+
+La page `/admin/messages-contact` regroupe les messages envoyés par les visiteurs via le formulaire **Nous contacter** (`/contact`).
+
+### Affichage
+- Messages triés du plus récent au plus ancien
+- Pour chaque message : nom, email, date et heure, sujet (s'il a été renseigné), texte du message
+- Les messages **non lus** sont encadrés en violet avec une pastille ; le nombre de messages non lus est indiqué en haut de la page
+
+### Actions disponibles
+
+| Action | Effet |
+|--------|-------|
+| Clic sur l'email | Ouvre votre messagerie pour répondre à l'expéditeur |
+| **Marquer lu** / **Marquer non lu** | Change le statut du message (le compteur se met à jour) |
+| Corbeille | Supprime le message après confirmation — **irréversible** |
+
+> Le visiteur ne reçoit pas de copie de son message : la réponse se fait par email depuis votre messagerie.
 
 ---
 

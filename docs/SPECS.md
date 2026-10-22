@@ -2,7 +2,7 @@
 
 **Project**: Weekook - Cuisine à Domicile Platform
 **Environment**: Development  
-**Date**: 2026-02-18  
+**Date**: 2026-02-18 (mise à jour 2026-10-23)  
 **Tech Stack**: React 18 + TypeScript + Vite 6 + Express.js + Prisma + MySQL
 
 ---
@@ -82,6 +82,9 @@ model KookerProfile {
   verified        Boolean   @default(false)
   isCompany       Boolean   @default(false) @map("is_company")
   active          Boolean   @default(true)
+  latitude        Float?    // Coordonnées de la ville (géolocalisation)
+  longitude       Float?
+  serviceRadiusKm Int       @default(30) @map("service_radius_km")  // Zone d'intervention (km)
   stripeAccountId          String?   @map("stripe_account_id")
   stripeOnboardingComplete Boolean   @default(false) @map("stripe_onboarding_complete")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -346,6 +349,20 @@ model Config {
   @@map("configs")
 }
 
+// Messages du formulaire de contact (consultés dans l'admin)
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  subject   String?
+  message   String   @db.Text
+  userId    Int?     @map("user_id")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contact_messages")
+}
+
 // Testimonials for homepage
 model Testimonial {
   id              Int       @id @default(autoincrement())
@@ -424,7 +441,7 @@ model PageViewLog {
 | Model | Purpose | Key Fields |
 |-------|---------|-----------|
 | **User** | All platform users | id, email, password (bcrypt), firstName, lastName, phone, avatar, role, isAdmin |
-| **KookerProfile** | Professional kooker information | userId, bio, specialties (JSON), type (JSON), city, address, rating, reviewCount, verified, stripeAccountId |
+| **KookerProfile** | Professional kooker information | userId, bio, specialties (JSON array, liste admin), type (JSON), city, latitude, longitude, serviceRadiusKm, address, rating, reviewCount, verified, stripeAccountId |
 | **UserProfile** | Hosting information for users | userId, address, city, kitchen details, dietary restrictions, allergies |
 | **Service** | Offering (KOOK/COURS) | kookerProfileId, title, type, priceInCents, durationMinutes, maxGuests, ingredients info, equipment |
 | **ServiceImage** | Images for services | serviceId, url, isCardImage, sortOrder |
@@ -439,6 +456,7 @@ model PageViewLog {
 | **PasswordResetToken** | Password recovery | userId, token, expiresAt, used |
 | **EmailToken** | Email verification & change confirmation | userId, token (unique), type ("verify"\|"change_email"), expiresAt, used |
 | **Config** | System configuration | key, value (JSON) |
+| **ContactMessage** | Formulaire de contact | name, email, subject, message, read, createdAt |
 | **ErrorLog** | Server error tracking | message, stack, route, statusCode, userId |
 | **PageViewLog** | Performance tracking | page, loadTimeMs, userId |
 
@@ -576,10 +594,15 @@ model PageViewLog {
     "specialties": ["string array"],
     "type": ["KOOK" or "COURS"],
     "city": "string",
+    "latitude": "number (optional)",
+    "longitude": "number (optional)",
+    "serviceRadiusKm": "number 1-200 (optional, défaut 30)",
     "experience": "string (optional)",
     "isCompany": "boolean (optional)"
   }
   ```
+- **Spécialités** : doivent appartenir à `configs.specialties` → sinon 400 *"Spécialité non proposée : X. Choisissez dans la liste."*
+- **Géolocalisation** : sans `latitude`/`longitude`, la ville est géolocalisée côté serveur (`geocodeCity`)
 - **Creates**: KookerProfile with active=false
 - **Updates**: User role to "kooker"
 - **Invalidates**: Auth cache
@@ -588,7 +611,10 @@ model PageViewLog {
 
 #### PUT `/profile` (Protected, Kooker Required)
 - **Validation**: `updateKookerProfileSchema`
-- **Body**: Any subset of: bio, specialties, type, city, experience, address, isCompany
+- **Body**: Any subset of: bio, specialties, type, city, latitude, longitude, serviceRadiusKm, experience, address, isCompany
+- **Logic**:
+  - `specialties` vérifiées contre la liste admin (les valeurs déjà présentes sur le profil restent acceptées)
+  - `city` envoyé → coordonnées mises à jour (fournies ou géolocalisées ; ville vide → null)
 - **Returns**: Updated KookerProfile
 - **Status Codes**: 200, 403 (not kooker), 400 (validation)
 
@@ -597,13 +623,14 @@ model PageViewLog {
 ### SERVICES ROUTES (`/api/v1/services`)
 
 #### GET `/search` (Search services — public)
-- **Params**: `q`, `type`, `specialty`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `page` (défaut 1), `limit` (défaut 12)
+- **Params**: `q`, `type`, `specialty`, `lat`, `lng`, `radius`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `page` (défaut 1), `limit` (défaut 12)
 - **Filtres**:
   - Uniquement services `active: true` appartenant à un kooker `active: true`
-  - `q` : recherche texte sur titre, description, nom kooker, spécialités
-  - `type` : contenu du champ JSON `type` du service
-  - `specialty` : spécialités du kookerProfile
-  - `city` : sur `kookerProfile.city` (case-insensitive)
+  - `q` : recherche texte sur titre, description, prénom/nom kooker, spécialités kooker (requête SQL `LOWER(CAST(specialties AS CHAR)) LIKE %q%` → partiel, insensible à la casse)
+  - `type` : `array_contains: [type]` sur le tableau JSON `type` du service
+  - `specialty` : `array_contains` sur `kookerProfile.specialties` **OU** sur `service.specialty`
+  - `lat` + `lng` : kookers géolocalisés tels que `haversine(lieu, kooker) ≤ GREATEST(service_radius_km, radius)` ; `radius` = distance que le client accepte de parcourir (0–200, défaut 0) ; chaque service retourné porte `distanceKm`
+  - `city` : sur `kookerProfile.city` (sous-chaîne) — compatibilité, non utilisé par l'interface
   - `minPrice` / `maxPrice` : sur `priceInCents` (euros → centimes)
   - `difficulty` : sur `koursDifficulty` (COURS uniquement)
   - `featured` : `kookerProfile.featured = true`
@@ -632,7 +659,7 @@ model PageViewLog {
     "description": "string (optional)",
     "type": ["KOOK" or "COURS"],
     "priceInCents": 5000,  // e.g., 50 EUR
-    "durationMinutes": 120,
+    "durationMinutes": 120,  // 0 pour un KOOK (durée désactivée en MVP)
     "minGuests": 1,
     "maxGuests": 6,
     "allergens": ["array"],
@@ -653,6 +680,7 @@ model PageViewLog {
     "images": ["url1", "url2"]
   }
   ```
+- **Spécialités** : `specialty` doit appartenir à `configs.specialties` → sinon 400
 - **Creates**: Service + ServiceImages + MenuItems
 - **Returns**: Service with images and menuItems
 - **Status Codes**: 201, 403 (not kooker), 400 (validation)
@@ -666,6 +694,7 @@ model PageViewLog {
 - **Validation**: `updateServiceSchema` (all fields optional)
 - **Logic**:
   - Verifies ownership
+  - `specialty` vérifiée contre la liste admin (valeurs déjà présentes sur l'offre acceptées)
   - Replaces menuItems if provided
   - Preserves isCardImage flag on images if URL matches
   - If no card image previously, first image becomes card image
@@ -992,6 +1021,33 @@ model PageViewLog {
 
 ---
 
+### CONTACT ROUTES (`/api/v1/contact`)
+
+#### POST `/` (Public)
+- **Validation**: `createContactMessageSchema`
+- **Rate limit**: 5 req / 15 min par IP
+- **Body**: `{ "name": "string ≤100", "email": "email", "subject": "string ≤200 (optional)", "message": "string 1-5000" }`
+- **Creates**: ContactMessage (`read = false`)
+- **Status Codes**: 201, 400 (validation), 429
+
+---
+
+### GEO ROUTES (`/api/v1/geo`)
+
+Proxy vers les API publiques françaises (`server/src/lib/geo.ts`) : `geo.api.gouv.fr/communes` et `data.geopf.fr/geocodage/search` (timeout 5 s). Format d'un lieu : `{ label, city, postalCode, latitude, longitude }`.
+
+#### GET `/cities?q=` (Public)
+- Nom de commune (≥ 2 caractères, tri par population) ou code postal à 5 chiffres → jusqu'à 6 lieux
+
+#### GET `/reverse?lat=&lng=` (Public)
+- Commune contenant la position ; la position exacte est conservée dans `latitude`/`longitude`
+- **Status Codes**: 200, 400 (coordonnées invalides)
+
+#### GET `/home` (Protected)
+- Géolocalise l'adresse du profil d'accueil (`user_profiles.address`, `postal_code`, `city`) → lieu `label: "Chez moi"`, ou `null` si aucune adresse
+
+---
+
 ### ADMIN ROUTES (`/api/v1/admin`)
 
 #### GET `/config/public` (Public - no auth needed)
@@ -1037,6 +1093,14 @@ model PageViewLog {
 #### PUT `/testimonials/:id` (Protected, Admin Required)
 
 #### DELETE `/testimonials/:id` (Protected, Admin Required)
+
+#### GET `/contact-messages` (Protected, Admin Required)
+- **Returns**: Tous les ContactMessage, `createdAt DESC`
+
+#### PUT `/contact-messages/:id` (Protected, Admin Required)
+- **Body**: `{ "read": boolean }`
+
+#### DELETE `/contact-messages/:id` (Protected, Admin Required)
 
 #### GET `/config` (Protected, Admin Required)
 - **Returns**: All configuration keys/values
@@ -1133,7 +1197,16 @@ becomeKookerSchema = z.object({
   city: z.string().min(1, 'La ville est requise'),
   experience: z.string().optional(),
   isCompany: z.boolean().optional(),
+  phone: phoneSchema,
+  ...locationFields,
 });
+
+// Zone d'intervention (#82)
+locationFields = {
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  serviceRadiusKm: z.number().int().min(1).max(200).optional(),
+};
 
 updateKookerProfileSchema = z.object({
   bio: z.string().optional(),
@@ -1143,7 +1216,10 @@ updateKookerProfileSchema = z.object({
   experience: z.string().optional(),
   address: z.string().optional(),
   isCompany: z.boolean().optional(),
+  ...locationFields,
 });
+// Les valeurs de `specialties` sont en plus vérifiées dans la route
+// contre la liste admin (assertAllowedSpecialties, voir CONFIGURATION & UTILITIES)
 
 updateUserProfileSchema = z.object({
   firstName: z.string().optional(),
@@ -1193,7 +1269,7 @@ createServiceSchema = z.object({
   description: z.string().optional(),
   type: z.array(z.string()).min(1, 'Au moins un type est requis'),
   priceInCents: z.number().min(0, 'Le prix doit etre positif'),
-  durationMinutes: z.number().min(1, 'La duree doit etre au moins 1 minute'),
+  durationMinutes: z.number().min(0), // 0 pour les KOOK (durée désactivée en MVP)
   minGuests: z.number().optional(),
   maxGuests: z.number().optional().default(1),
   allergens: z.array(z.string()).optional(),
@@ -1219,7 +1295,7 @@ updateServiceSchema = z.object({
   description: z.string().optional(),
   type: z.array(z.string()).optional(),
   priceInCents: z.number().min(0).optional(),
-  durationMinutes: z.number().min(1).optional(),
+  durationMinutes: z.number().min(0).optional(),
   minGuests: z.number().optional(),
   maxGuests: z.number().optional(),
   active: z.boolean().optional(),
@@ -1256,6 +1332,17 @@ createKookerReviewSchema = z.object({
   bookingId: z.number({ required_error: 'bookingId est requis' }),
   rating: z.number().min(1, 'La note minimum est 1').max(5, 'La note maximum est 5'),
   comment: z.string().optional(),
+});
+```
+
+### Contact Schemas (`server/src/schemas/contact.ts`)
+
+```typescript
+createContactMessageSchema = z.object({
+  name: z.string().trim().min(1, 'Le nom est requis').max(100),
+  email: z.string().trim().email('Email invalide').max(255),
+  subject: z.string().trim().max(200).optional(),
+  message: z.string().trim().min(1, 'Le message est requis').max(5000),
 });
 ```
 
@@ -1335,6 +1422,9 @@ function rateLimit(maxRequests: number = 5, windowMs: number = 15*60*1000):
   - In-memory tracking by IP
   - Returns 429 if exceeded
   - Window resets after windowMs
+  - ⚠️ Compteur partagé entre toutes les routes limitées (une seule Map par IP)
+
+Utilisé sur : auth (login, register, forgot-password, resend-verification) et `POST /contact` (5 / 15 min).
 ```
 
 ### Upload Middleware (`server/src/middleware/upload.ts`)
@@ -1412,6 +1502,33 @@ class ForbiddenError extends AppError {
 
 ---
 
+### Specialties (`server/src/utils/specialties.ts`)
+
+```typescript
+assertAllowedSpecialties(values: string[] | undefined, existing: unknown = []): Promise<void>
+  - Liste autorisée = configs.specialties + valeurs déjà enregistrées (existing)
+  - Lance AppError 400 "Spécialité non proposée : X. Choisissez dans la liste." sinon
+  - Utilisé par POST /kookers/become, PUT /kookers/profile, POST /services, PUT /services/:id
+```
+
+### Geo (`server/src/lib/geo.ts`)
+
+```typescript
+searchCities(query, limit = 6): Promise<GeoPlace[]>   // nom ou code postal
+reverseCity(lat, lng): Promise<GeoPlace | null>
+geocodeAddress(address): Promise<GeoPlace | null>     // Base Adresse Nationale
+geocodeCity(city): Promise<GeoPlace | null>           // champ ville libre ("13006 Marseille")
+backfillKookerCoordinates(): Promise<void>            // au démarrage, kookers sans coordonnées
+```
+
+### Tâches au démarrage (`server/src/app.ts`)
+
+1. `seedConfig()` — valeurs de config par défaut
+2. `normalizeKookerSpecialties()` — convertit en listes JSON les `specialties` stockées en texte (`JSON_TYPE = 'STRING'`)
+3. Après `listen` : `backfillKookerCoordinates()` en arrière-plan
+
+---
+
 ## EMAIL SYSTEM
 
 ### Email Functions (`server/src/lib/email.ts`)
@@ -1481,7 +1598,7 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 | `/recherche` | SearchPage | Public | Search & filter services (ServiceCard) — appel `GET /services/search` |
 | `/kooker/:id` | KookerProfilePage | Public | Public kooker profile + services + reviews |
 | `/prestation/:id` | ServiceDetailPage | Public | Détail d'une prestation : galerie, description, prix, encart kooker, CTA réserver |
-| `/tarification` | PricingPage | Public | Pricing info |
+| `/tarification` | PricingPage | Public | Pricing info (retirée du header et du footer) |
 | `/a-propos` | AboutPage | Public | About page |
 | `/avantages` | BenefitsPage | Public | Benefits page |
 | `/confiance` | TrustPage | Public | Trust & guarantee page |
@@ -1489,7 +1606,7 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 | `/connexion` | LoginPage | Public | Login/Register split-screen |
 | `/verifier-email` | VerifyEmailPage | Public | Email verification after registration |
 | `/confirmer-email` | ConfirmEmailChangePage | Public | Email change confirmation |
-| `/contact` | ContactPage | Public | Contact form |
+| `/contact` | ContactPage | Public | Contact form → `POST /contact` |
 | `/reinitialiser-mot-de-passe` | ResetPasswordPage | Public | Password reset form |
 | `/tableau-de-bord` | UserDashboardPage | Protected | User bookings, favorites |
 | `/devenir-kooker` | BecomeKookerPage | Protected | Form to become kooker |
@@ -1508,8 +1625,17 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 | `/admin/temoignages` | AdminTestimonialsPage | Admin | Testimonials management |
 | `/admin/avis` | AdminReviewsPage | Admin | Review moderation (pending/approved/rejected) |
 | `/admin/faq` | AdminFaqPage | Admin | FAQ management |
+| `/admin/messages-contact` | AdminContactMessagesPage | Admin | Messages du formulaire de contact |
 | `/admin/configuration` | AdminConfigPage | Admin | System config |
 | `*` | NotFoundPage | Public | 404 page |
+
+### Composants partagés liés
+
+| Composant | Rôle |
+|-----------|------|
+| `components/common/CityAutocomplete.tsx` | Champ ville avec suggestions (`GET /geo/cities`) ; exporte `SERVICE_RADIUS_OPTIONS` = [5, 10, 20, 30, 50, 100] |
+| `components/common/SpecialtyPicker.tsx` | Choix des spécialités parmi `GET /admin/config/public` ; valeurs hors liste affichées « hors liste », retirables uniquement |
+| `lib/utils.ts` → `hasDuration(type, minutes)` | Durée affichée uniquement pour les COURS avec durée > 0 |
 
 ---
 
@@ -1718,7 +1844,9 @@ APP_URL=https://dev.weekook.com
 **31 API endpoints** cover:
 - Auth (register/login/logout/me/password-reset)
 - Kookers (search/profile/become/stats)
-- Services (CRUD + images)
+- Services (CRUD + images, recherche par lieu / zone d'intervention)
+- Géolocalisation (communes, position, adresse « chez moi »)
+- Contact (formulaire public + gestion admin)
 - Bookings (full lifecycle with Stripe integration)
 - Reviews (user→kooker + kooker→user, admin moderation)
 - Messages (internal messaging with email notifications)
@@ -1731,7 +1859,8 @@ APP_URL=https://dev.weekook.com
 - Sliding sessions with token refresh
 - Price in cents (stored/computed)
 - Duration in minutes
-- JSON fields for flexible arrays (specialties, types, allergens)
+- JSON fields for flexible arrays (specialties, types, allergens) — toujours des listes natives
+- Spécialités limitées à la liste admin (UI + serveur)
 - Accessibility (Radix UI, keyboard navigation)
 - Responsive design (Tailwind responsive utilities)
 - Error logging to DB

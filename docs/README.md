@@ -6,7 +6,7 @@ Documentation technique du projet Weekook — plateforme de cuisine à domicile.
 
 | Document | Description |
 |----------|-------------|
-| [SPECS_FONCTIONNELLES.md](./SPECS_FONCTIONNELLES.md) | Spécifications fonctionnelles — parcours utilisateur, règles métier, 60+ scénarios de test |
+| [SPECS_FONCTIONNELLES.md](./SPECS_FONCTIONNELLES.md) | Spécifications fonctionnelles — parcours utilisateur, règles métier, 75+ scénarios de test |
 | [SPECS.md](./SPECS.md) | Spécifications techniques — schéma DB, endpoints API, validations Zod, logique serveur |
 | [DOCUMENTATION_WEEKOOK.md](./DOCUMENTATION_WEEKOOK.md) | Fonctionnalités & règles de gestion — vue d'ensemble du produit |
 | [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) | Guide utilisateur du backoffice administrateur |
@@ -19,6 +19,7 @@ Documentation technique du projet Weekook — plateforme de cuisine à domicile.
 - **Server** : Express.js + Prisma ORM + MySQL
 - **Auth** : JWT httpOnly cookies, bcrypt 12 rounds
 - **Email** : Resend
+- **Géolocalisation** : API publiques geo.api.gouv.fr et Base Adresse Nationale (recherche par lieu et zone d'intervention des kookers)
 
 ## Démarrage rapide
 

@@ -1,8 +1,8 @@
 # Spécifications Fonctionnelles — Weekook V2
 
 **Projet** : Weekook — Plateforme de cuisine à domicile
-**Date** : 2026-10-02
-**Version** : 1.0
+**Date** : 2026-10-23
+**Version** : 1.1
 **Usage** : Référence pour tests fonctionnels, recette et automatisation QA
 
 ---
@@ -191,12 +191,33 @@ Un kooker avec 3 offres = 3 cartes distinctes dans les résultats. L'utilisateur
 
 | Filtre | Type | Comportement |
 |--------|------|-------------|
-| Recherche texte | Saisie libre | Recherche sur titre de la prestation, description, nom kooker, spécialités |
-| Type | Sélection | COURS / KOOK / Tous |
+| Recherche texte | Saisie libre | Recherche sur titre de la prestation, description, nom kooker, spécialités du kooker (recherche partielle, insensible à la casse : « orient » trouve « Orientale ») |
+| Type | Sélection | COURS / KOOK / Tous — une prestation ressort si sa liste de types contient le type choisi |
 | Difficulté | Sélection | Apparaît uniquement si Type = COURS ; valeurs : Débutant, Intermédiaire, Avancé |
-| Spécialité | Sélection | Liste issue de la config admin |
-| Ville | Sélection | Marseille, Aix-en-Provence, Cassis, Aubagne, La Ciotat |
+| Spécialité | Sélection | Liste issue de la config admin. Une prestation ressort si la spécialité figure dans les spécialités **de son kooker ou de la prestation elle-même** |
+| Où ? | Autocomplétion + raccourcis | Lieu de la prestation (voir §4.1b) |
+| Je peux me déplacer | Sélection | Visible une fois un lieu choisi : Non (le kooker vient à moi) / 5 / 10 / 20 / 50 km |
 | Prix min/max | Numérique | En euros, basé sur le prix de la prestation |
+
+### 4.1b Recherche par lieu et zone d'intervention
+
+Chaque kooker définit une **ville** et une **zone d'intervention** (rayon en km, voir §8.2 et §11.5). La ville est géolocalisée (latitude / longitude).
+
+**Choix du lieu par le client (champ « Où ? ») :**
+- Saisie d'une ville ou d'un code postal avec suggestions de communes (API publique geo.api.gouv.fr)
+- Bouton **🏠 Chez moi** (client connecté) : utilise l'adresse renseignée dans « Mon profil » ; si aucune adresse → message *"Renseignez votre adresse dans « Mon profil » pour utiliser « Chez moi »."*
+- Bouton **📍 Ma position** : géolocalisation du navigateur (autorisation demandée), libellé *"Ma position (Ville)"*
+- Le lieu reste modifiable à tout moment ; une saisie non validée par une suggestion n'applique aucun filtre de lieu
+
+**Règle de correspondance :** une prestation ressort si la distance entre le lieu du client et la ville du kooker est inférieure ou égale au **plus grand** des deux rayons :
+- la zone d'intervention du kooker (il se déplace jusqu'au client)
+- la distance que le client accepte de parcourir (« Je peux me déplacer », ex. Kours chez le kooker)
+
+Exemple : kooker à Lyon, zone 30 km → un client à 17 km de Lyon le trouve ; un client à 40 km ne le trouve que s'il accepte de se déplacer d'au moins 40 km.
+
+Les kookers sans coordonnées (ville non reconnue) n'apparaissent pas dans une recherche avec lieu. Les profils créés avant cette fonctionnalité sont géolocalisés automatiquement au démarrage du serveur à partir de leur ville.
+
+Le lieu (`loc`, `lat`, `lng`) et la distance (`radius`) sont conservés dans l'URL.
 
 **Logique des filtres :**
 - Les filtres "en cours de saisie" ne s'appliquent qu'après clic sur "Appliquer"
@@ -436,9 +457,11 @@ cancelled           → Annulation (par client ou kooker)
 **Champs requis :**
 - Téléphone
 - Adresse
-- Ville
+- Ville — autocomplétion de communes ; les coordonnées GPS de la ville sont enregistrées (à défaut, la ville est géolocalisée par le serveur)
 - Biographie/Description
-- Spécialités (tableau, au moins une)
+- Spécialités — **sélection parmi la liste admin** (Configuration → Spécialités), pas de saisie libre
+
+**Zone d'intervention :** 5 / 10 / 20 / 30 / 50 / 100 km autour de la ville (défaut 30 km), libellé *"Lyon et 30 km autour"*. Le kooker apparaît dans les recherches des clients situés dans cette zone (§4.1b).
 
 **Champs optionnels :**
 - Années d'expérience (0–50)
@@ -467,7 +490,7 @@ cancelled           → Annulation (par client ou kooker)
 
 Via `GET /admin/config/public` :
 - `commissionKours` (%) et `commissionKook` (%)
-- Liste des spécialités
+- Liste des spécialités (seules valeurs autorisées, voir §16.9)
 - `kookBaseGuests` (défaut = 6)
 - Liste des unités de mesure
 - Texte des tooltips (allergènes, commission)
@@ -480,10 +503,10 @@ Via `GET /admin/config/public` :
 | Description | Oui | Non vide |
 | Prix (€) | Oui | ≥ 0, stocké en centimes |
 | Prix convive supplémentaire (€) | Oui | ≥ 0 |
-| Durée (minutes) | Oui | ≥ 1 |
+| Durée (minutes) | **COURS uniquement** | ≥ 1. Pour les KOOK, la durée n'est ni demandée ni affichée (MVP : elle se discute en messagerie) ; enregistrée à 0 |
 | Nombre max de convives | Oui | ≥ 1 |
 | Nombre min de convives (KOOK) | Non | Définit le forfait de base |
-| Spécialités | Non | Tableau de chaînes |
+| Spécialités | Non | Sélection parmi la liste admin (§16.9) |
 | Allergènes | Non | Parmi : Gluten, Lactose, Arachide, Fruits à coques, Œuf, Fruits de mer, Autres |
 | Tags régime | Non | Végétarien, Végan, Sans porc |
 | Photos | Non | Fichiers uploadés, compressés, URLs stockées |
@@ -522,6 +545,7 @@ Via `GET /admin/config/public` :
 - Seul le propriétaire du service peut le modifier → sinon erreur `403` : *"Vous ne pouvez modifier que vos propres services"*
 - Soumission : `PUT /services/:id`
 - Les photos et items de menu sont remplacés intégralement
+- Spécialités : une spécialité déjà enregistrée mais retirée de la liste admin s'affiche « hors liste » (pointillés) et peut seulement être retirée
 - **Succès :** Toast *"Service modifié avec succès !"* → redirection `/kooker-dashboard?tab=services`
 
 ---
@@ -558,7 +582,7 @@ Chargées via `GET /kookers/dashboard/stats` :
 
 - Liste de tous les services du kooker
 - Par service :
-  - Titre, type, prix, durée, max convives, nombre de photos
+  - Titre, type, prix, durée (COURS uniquement), max convives, nombre de photos
   - Toggle actif/inactif (`PUT /services/:id`)
   - Bouton "Modifier" → `/edit-menu/:id`
   - Bouton "Supprimer" → confirmation → `DELETE /services/:id`
@@ -576,7 +600,7 @@ Chargées via `GET /kookers/dashboard/stats` :
 ### 11.5 Onglet Profil kooker
 
 - Chargé via `GET /kookers/:kookerProfileId`
-- Champs modifiables : biographie, spécialités, ville, type(s) de prestation, expérience, téléphone, adresse, statut entreprise
+- Champs modifiables : biographie, spécialités (liste admin, §16.9), ville (autocomplétion), **zone d'intervention** (5 à 100 km), type(s) de prestation, expérience, téléphone, adresse, statut entreprise
 - Avatar modifiable (upload → compress → `POST /upload` → `PUT /users/avatar`)
 - Sauvegarde : `PUT /kookers/profile` + `PUT /users/profile`
 
@@ -710,11 +734,17 @@ Valeurs modifiables (stockées en DB) :
 | `kookBaseGuests` | Nombre | Forfait de base KOOK (nb de convives inclus) |
 | `tooltipFruitsDesMer` | Texte | Texte info-bulle allergène "Fruits de mer" |
 | `tooltipCommission` | Texte | Texte info-bulle commission (simulation revenus) |
-| `specialties` | Liste | Spécialités culinaires disponibles |
-| `cities` | Liste | Villes disponibles dans les filtres |
+| `specialties` | Liste | Spécialités culinaires — **seules valeurs acceptées** pour les kookers et les offres (§16.9) |
+| `cities` | Liste | Ancienne liste de villes — n'est plus utilisée par la recherche (remplacée par la recherche par lieu, §4.1b) |
 | `allergens` | Liste | Allergènes disponibles |
 | `serviceTypes` | Liste | Types de service |
 | `units` | Liste | Unités de mesure pour les ingrédients |
+
+### 15.3b Messages de contact
+
+- Les messages envoyés via le formulaire `/contact` sont enregistrés en base (table `contact_messages`)
+- Rubrique **Admin → Messages contact** (`/admin/messages-contact`) : du plus récent au plus ancien, avec nom, email (lien `mailto:` pour répondre), sujet, message, date
+- Messages non lus mis en évidence + compteur ; actions : marquer lu / non lu, supprimer
 
 ### 15.4 KPIs et analytique
 
@@ -733,7 +763,7 @@ Valeurs modifiables (stockées en DB) :
 | `/connexion` | LoginPage | Connexion / Inscription |
 | `/verifier-email` | VerifyEmailPage | Vérification d'email après inscription |
 | `/confirmer-email` | ConfirmEmailChangePage | Confirmation de changement d'email |
-| `/contact` | ContactPage | Formulaire de contact |
+| `/contact` | ContactPage | Formulaire de contact — message enregistré et visible dans l'admin ; confirmation par le bloc *"Message envoyé !"* uniquement (pas de toast) |
 | `/tableau-de-bord` | UserDashboardPage | Dashboard utilisateur |
 | `/kooker-dashboard` | KookerDashboardPage | Dashboard kooker |
 | `/devenir-kooker` | BecomeKookerPage | Formulaire devenir kooker |
@@ -751,6 +781,7 @@ Valeurs modifiables (stockées en DB) :
 | `/admin/services` | AdminServicesPage | Catalogue services |
 | `/admin/temoignages` | AdminTestimonialsPage | Modération témoignages |
 | `/admin/faq` | AdminFaqPage | Gestion FAQ |
+| `/admin/messages-contact` | AdminContactMessagesPage | Messages du formulaire de contact |
 | `/admin/configuration` | AdminConfigPage | Configuration dynamique |
 
 ---
@@ -767,11 +798,13 @@ Valeurs modifiables (stockées en DB) :
 
 - Stockées en **minutes** (integer) en base de données
 - Affichées en format humain : "1h30" ou "45 min"
+- Affichées **uniquement pour les COURS** (cartes, fiche prestation, profil kooker, réservation, dashboard, admin) ; jamais pour les KOOK, y compris les anciens KOOK qui ont une durée enregistrée
 
 ### 16.3 Champs JSON en MySQL
 
 - `specialties`, `type`, `allergens`, `constraints`, `equipmentKooker`, `ingredientsList` : stockés en JSON
 - Parsés à la lecture (peuvent arriver sous forme de string ou d'objet selon le driver)
+- Toujours enregistrés comme **listes JSON natives** (jamais une liste sérialisée en texte) : les filtres de recherche (`array_contains`) ne trouvent que les listes. Au démarrage, le serveur convertit en listes les spécialités kooker encore stockées en texte
 
 ### 16.4 Emails (Resend — fire-and-forget)
 
@@ -797,6 +830,7 @@ Les emails sont envoyés de manière asynchrone (non bloquant). Un échec d'envo
 | `POST /auth/register` | 50 req / 15 min |
 | `POST /auth/forgot-password` | 5 req / 15 min |
 | `POST /auth/resend-verification` | 5 req / 15 min |
+| `POST /contact` | 5 req / 15 min |
 
 ### 16.8 Codes HTTP d'autorisation
 
@@ -806,6 +840,22 @@ Les emails sont envoyés de manière asynchrone (non bloquant). Un échec d'envo
 | `403` | Interdit (rôle insuffisant) | Utilisateur authentifié mais sans le rôle requis (`requireKooker`, `requireAdmin`) |
 
 Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden) et non 401, car l'utilisateur est bien identifié mais n'a pas les permissions nécessaires.
+
+### 16.9 Spécialités
+
+- Kookers (devenir kooker, profil) et offres (création, modification) choisissent leurs spécialités **uniquement dans la liste admin** (`specialties`), via des boutons à cocher
+- **Vérification serveur** : toute spécialité hors liste est refusée (`400` : *"Spécialité non proposée : X. Choisissez dans la liste."*)
+- Exception : une spécialité **déjà enregistrée** sur le profil ou l'offre reste acceptée (affichée « hors liste ») afin de ne pas bloquer la sauvegarde ; elle peut être retirée mais pas ajoutée à nouveau
+- Les comparaisons sont exactes (majuscules et accents compris) : « Italien » ≠ « Italienne »
+
+### 16.10 Navigation (header et footer)
+
+- **Header** : Accueil, FAQ, A propos (la page `/tarification` existe mais n'est plus dans le menu)
+- **Footer** :
+  - *Découvrir* : Trouver une expérience (`/recherche`), Se connecter / s'inscrire (`/connexion`), Pourquoi devenir Kooker ? (`/avantages`)
+  - *Aide & Confiance* : FAQ, Confiance & sécurité (`/confiance`), Charte du Kooker (à venir)
+  - *Weekook* : A propos, Nous contacter (`/contact`)
+  - Bas de page : © 2026 Weekook · Mentions légales · CGU · Politique de confidentialité · Politique de cookies (pages à venir) ; icônes Instagram et TikTok ; bloc newsletter
 
 ### 16.6 Images
 
@@ -850,13 +900,21 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | # | Scénario | Actions | Résultat attendu |
 |---|----------|---------|-----------------|
 | B01 | Recherche par texte | Saisir "marseille" dans la barre de recherche | Kookers de Marseille affichés |
-| B02 | Filtre type COURS | Sélectionner COURS | Seuls les kookers avec offre COURS affichés |
+| B02 | Filtre type COURS | Sélectionner COURS | Seules les offres COURS affichées (non vide si des COURS existent) |
+| B02b | Filtre type KOOK | Sélectionner KOOK ou cliquer le bloc KOOK de l'accueil | Seules les offres KOOK affichées |
 | B03 | Filtre type COURS + difficulté | COURS + Débutant | Kookers avec COURS niveau Débutant |
 | B04 | Filtre difficulté sans COURS | Sélectionner difficulté sans sélectionner COURS | Filtre difficulté non visible / inactif |
 | B05 | Filtre prix | Min = 50€, Max = 100€ | Kookers dont le prix min d'offre est entre 50 et 100€ |
 | B06 | Aucun résultat | Filtres très restrictifs | Message "Aucun résultat", suggestion de modifier les filtres |
 | B07 | Réinitialiser les filtres | Clic "Réinitialiser" | Tous les filtres vidés, recherche relancée |
-| B08 | URL préserve les filtres | Appliquer filtres + copier URL | Recharger l'URL → mêmes filtres appliqués |
+| B08 | URL préserve les filtres | Appliquer filtres + copier URL | Recharger l'URL → mêmes filtres appliqués (y compris le lieu) |
+| B09 | Filtre spécialité | Choisir une spécialité de la liste | Offres dont le kooker **ou** l'offre a cette spécialité |
+| B10 | Texte partiel sur spécialité | Saisir "pâtiss" | Kookers avec la spécialité « Pâtisserie » |
+| B11 | Lieu dans la zone du kooker | Kooker Marseille (30 km) ; Où ? = Aubagne | Les offres du kooker sont affichées (≈ 15 km) |
+| B12 | Lieu hors zone | Kooker Marignane (30 km) ; Où ? = Aubagne | Offres absentes (≈ 36 km) |
+| B13 | Client accepte de se déplacer | Où ? = Avignon ; « Je peux me déplacer » = 50 km puis Non | Résultats avec 50 km ; aucun résultat marseillais avec Non |
+| B14 | Chez moi sans adresse | Connecté sans adresse de profil | Clic « Chez moi » → message invitant à renseigner l'adresse |
+| B15 | Ma position | Autoriser la géolocalisation | Lieu = « Ma position (Ville) », modifiable |
 
 ---
 
@@ -893,7 +951,11 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | D03 | Créer COURS + KOOK | Kooker connecté | Sélectionner les deux types | Deux services créés |
 | D04 | Champs requis manquants | — | Soumettre formulaire incomplet | Erreur de validation, formulaire non soumis |
 | D05 | Prix négatif | — | Saisir prix = -5 | Bloqué (min = 0) |
-| D06 | Durée = 0 | — | Saisir durée = 0 | Bloqué (min = 1 minute) |
+| D06 | Durée = 0 (COURS) | — | Saisir durée = 0 sur un COURS | Bloqué (min = 1 minute) |
+| D06b | Pas de durée KOOK | Kooker connecté | Créer / modifier un KOOK | Aucun champ durée ; durée non affichée ensuite |
+| D13 | Spécialités | Kooker connecté | Créer une offre | Seules les spécialités de la liste admin sont proposées |
+| D14 | Spécialité hors liste via API | Kooker connecté | `POST /services` avec une spécialité inexistante | Erreur 400 *"Spécialité non proposée…"* |
+| D15 | Ancienne spécialité conservée | Offre avec spécialité retirée de la liste | Modifier l'offre sans toucher aux spécialités | Sauvegarde OK ; spécialité affichée « hors liste » |
 | D07 | Modifier son offre | Propriétaire | Modifier et soumettre | Service mis à jour, toast confirmation |
 | D08 | Modifier l'offre d'un autre | Autre kooker | Appel `PUT /services/:id` | Erreur 403 |
 | D09 | Désactiver une offre | Kooker connecté | Toggle inactif | Offre disparaît des résultats de recherche |
@@ -928,8 +990,21 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | F04 | Toggle kooker vérifié | Admin connecté | Activer "verified" | Badge vérifié sur le profil |
 | F05 | Désactiver un kooker | Admin connecté | Toggle actif → inactif | Kooker n'apparaît plus dans la recherche |
 | F06 | Modifier commission KOURS | Admin connecté | Changer commissionKours à 25% | Nouveau taux utilisé dans les simulations de revenus |
-| F07 | Ajouter une ville | Admin connecté | Ajouter "Toulon" à la liste villes | "Toulon" disponible dans le filtre de recherche |
+| F07 | Ajouter une spécialité | Admin connecté | Ajouter "Japonaise" à la liste spécialités | Proposée aux kookers (profil, offres) et dans le filtre de recherche |
+| F09 | Message de contact | Visiteur | Envoyer le formulaire `/contact` | Bloc "Message envoyé !" (pas de toast) ; message visible dans Admin → Messages contact (non lu) |
+| F10 | Lecture d'un message | Admin connecté | Marquer lu, puis supprimer | Compteur de non lus mis à jour ; message supprimé |
 | F08 | Supprimer un utilisateur | Admin connecté | Supprimer compte | Compte supprimé définitivement |
+
+---
+
+### BLOC H — Profil kooker et navigation
+
+| # | Scénario | Actions | Résultat attendu |
+|---|----------|---------|-----------------|
+| H01 | Zone d'intervention | Profil kooker : ville = Lyon (suggestion), zone = 20 km, enregistrer | Un client à 17 km trouve le kooker, un client à 25 km non (sauf s'il accepte de se déplacer) |
+| H02 | Devenir kooker — spécialités | Formulaire devenir kooker | Boutons issus de la liste admin, aucune saisie libre |
+| H03 | Header | Ouvrir le site | Pas de lien « Tarification » |
+| H04 | Footer | Bas de page | Rubriques Découvrir / Aide & Confiance / Weekook, liens légaux, Instagram et TikTok |
 
 ---
 
@@ -944,4 +1019,4 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 
 ---
 
-*Document généré le 2026-10-02 — à maintenir à jour lors de chaque évolution fonctionnelle.*
+*Document généré le 2026-10-02, mis à jour le 2026-10-23 — à maintenir à jour lors de chaque évolution fonctionnelle.*

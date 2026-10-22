@@ -43,9 +43,11 @@
 
 **Monorepo** avec npm workspaces : `client/`, `server/`, `shared/`
 
-### Base de données — 16 tables
+### Base de données — 20 tables
 
-`users`, `kooker_profiles`, `user_profiles`, `kooker_specialties`, `services`, `service_images`, `menu_items`, `bookings`, `payments`, `reviews`, `favorites`, `availabilities`, `messages`, `configs`, `testimonials`
+`users`, `kooker_profiles`, `user_profiles`, `kooker_specialties`, `services`, `service_images`, `menu_items`, `bookings`, `payments`, `reviews`, `favorites`, `availabilities`, `messages`, `configs`, `contact_messages`, `testimonials`, `password_reset_tokens`, `email_tokens`, `error_logs`, `page_view_logs`
+
+**Services externes de géolocalisation** (gratuits, sans clé) : `geo.api.gouv.fr` (communes) et `data.geopf.fr/geocodage` (Base Adresse Nationale), appelés uniquement par le serveur (voir §6.1c).
 
 ---
 
@@ -115,6 +117,8 @@
 
 Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.json({ limit: '1mb' })`).
 
+`Permissions-Policy` : `camera=(), microphone=(), geolocation=(self)` — la géolocalisation est autorisée pour le site lui-même (bouton « Ma position » de la recherche).
+
 ---
 
 ## 3. Gestion des utilisateurs
@@ -166,9 +170,11 @@ Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.jso
 | Champ | Type | Requis | Règle |
 |-------|------|--------|-------|
 | `bio` | string | Non | Description publique |
-| `specialties` | string[] | Oui | Au moins 1 spécialité |
-| `type` | string[] | Oui | Types de service (KOOK, KOURS) |
+| `specialties` | string[] | Oui | Valeurs de la liste admin uniquement (voir §4.5) |
+| `type` | string[] | Oui | Types de service (KOOK, COURS) |
 | `city` | string | Oui | Minimum 1 caractère |
+| `latitude` / `longitude` | number | Non | Coordonnées de la ville (fournies par l'autocomplétion). Absentes → la ville est géolocalisée par le serveur |
+| `serviceRadiusKm` | number | Non | Zone d'intervention, 1–200 km, défaut 30 |
 | `experience` | string | Non | Ex: "5 ans" |
 | `isCompany` | boolean | Non | Défaut `false` |
 
@@ -191,7 +197,10 @@ Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.jso
 
 ### 4.2 Modifier le profil kooker (PUT /api/v1/kookers/profile)
 
-Champs modifiables : `bio`, `specialties`, `type`, `city`, `experience`, `address`, `isCompany` — tous optionnels. Seul le kooker authentifié peut modifier son propre profil.
+Champs modifiables : `bio`, `specialties`, `type`, `city`, `latitude`, `longitude`, `serviceRadiusKm`, `experience`, `address`, `isCompany` — tous optionnels. Seul le kooker authentifié peut modifier son propre profil.
+
+- Si `city` est envoyé : les coordonnées sont mises à jour (celles fournies, sinon géolocalisation serveur ; ville vide → coordonnées effacées)
+- `specialties` : vérifiées contre la liste admin, les spécialités déjà présentes sur le profil restant acceptées (§4.5)
 
 ### 4.3 Validation du kooker
 
@@ -226,6 +235,21 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 - **Recherche publique** : filtre `active: true` → les kookers inactifs sont invisibles
 - **Profil public** (GET /kookers/:id) : accessible même si inactif (par URL directe)
 - **Réservations** : les services d'un kooker inactif ne peuvent pas être réservés
+- **Recherche par lieu** : seuls les kookers géolocalisés (latitude/longitude renseignées) peuvent ressortir (§6.1)
+
+### 4.5 Spécialités — liste admin obligatoire
+
+- Les spécialités des kookers (`kooker_profiles.specialties`) et des offres (`services.specialty`) doivent appartenir à la liste admin `configs.specialties`
+- Interface : composant `SpecialtyPicker` (boutons à cocher) dans Devenir kooker, Profil kooker, Créer / Modifier une offre — plus de saisie libre
+- Serveur : `assertAllowedSpecialties()` (`server/src/utils/specialties.ts`) sur `POST /kookers/become`, `PUT /kookers/profile`, `POST /services`, `PUT /services/:id` → `400` *"Spécialité non proposée : X. Choisissez dans la liste."*
+- Les valeurs **déjà enregistrées** sur l'enregistrement modifié restent acceptées (anciens profils) ; l'interface les affiche « hors liste » et permet seulement de les retirer
+- Comparaison exacte (casse et accents)
+
+### 4.6 Zone d'intervention
+
+- Champs `kooker_profiles.latitude`, `longitude` (Float, nullable) et `service_radius_km` (Int, défaut 30)
+- Saisie : ville par autocomplétion (`GET /geo/cities`) + choix du rayon (5, 10, 20, 30, 50, 100 km)
+- Au démarrage du serveur, `backfillKookerCoordinates()` géolocalise les profils qui ont une ville mais pas de coordonnées
 
 ---
 
@@ -240,13 +264,13 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 | `title` | string | Oui | Non vide |
 | `type` | string[] | Oui | Au moins 1 type (KOOK, KOURS) |
 | `priceInCents` | number | Oui | ≥ 0 (stocké en centimes) |
-| `durationMinutes` | number | Oui | ≥ 1 |
+| `durationMinutes` | number | Oui | ≥ 0. **KOOK : 0** (durée désactivée en MVP, ni saisie ni affichée) ; COURS : ≥ 1 côté formulaire |
 | `description` | string | Non | Max 2000 caractères |
 | `minGuests` | number | Non | |
 | `maxGuests` | number | Non | Défaut 1 |
 | `allergens` | string[] | Non | |
 | `constraints` | string[] | Non | |
-| `specialty` | string[] | Non | |
+| `specialty` | string[] | Non | Valeurs de la liste admin (§4.5) |
 | `prepTimeMinutes` | number | Non | |
 | `ingredientsIncluded` | boolean | Non | Défaut `false` |
 | `equipmentProvided` | boolean | Non | Défaut `false` |
@@ -286,10 +310,12 @@ L'interface de recherche est centrée sur les **prestations** (et non plus les k
 
 | Paramètre | Type | Comportement |
 |-----------|------|-------------|
-| `q` | string | Recherche texte sur : titre service, description, nom kooker, spécialités |
-| `type` | string | Contenu du champ JSON `type` du service (KOOK / COURS) |
-| `specialty` | string | Spécialités du `kookerProfile` |
-| `city` | string | `kookerProfile.city` (case-insensitive) |
+| `q` | string | Recherche texte sur : titre service, description, prénom/nom kooker, spécialités kooker (partiel, insensible à la casse) |
+| `type` | string | Le tableau JSON `type` du service contient la valeur (`array_contains`) — KOOK / COURS |
+| `specialty` | string | Contenue dans `kookerProfile.specialties` **ou** dans `service.specialty` (`array_contains`) |
+| `lat` / `lng` | number | Lieu du client (voir ci-dessous) |
+| `radius` | number | Distance que le client accepte de parcourir, 0–200 km (défaut 0) |
+| `city` | string | `kookerProfile.city` (sous-chaîne) — conservé pour compatibilité, n'est plus utilisé par l'interface |
 | `minPrice` / `maxPrice` | number | Sur `priceInCents` du service (euros → centimes) |
 | `difficulty` | string | `koursDifficulty` (COURS uniquement) |
 | `featured` | boolean | `kookerProfile.featured = true` |
@@ -303,6 +329,13 @@ L'interface de recherche est centrée sur les **prestations** (et non plus les k
 2. Tri : `kookerProfile.featured DESC` puis `kookerProfile.rating DESC`
 3. Pagination SQL native
 4. Include : images (isCardImage prioritaire), kookerProfile avec user (avatar, nom)
+
+**Recherche par lieu (`lat` + `lng`) :**
+- Distance calculée en SQL (formule de haversine) entre le lieu et la ville de chaque kooker actif géolocalisé
+- Un kooker ressort si `distance ≤ GREATEST(service_radius_km, radius)` : le lieu est dans sa zone d'intervention, ou le client accepte de se déplacer jusqu'à lui
+- Chaque service retourné porte `distanceKm` (arrondi à 0,1 km)
+
+**Champs JSON :** les filtres `type` et `specialty` utilisent `array_contains` et ne trouvent que des listes JSON natives. Au démarrage, `normalizeKookerSpecialties()` (`app.ts`) convertit en listes les spécialités kooker stockées en texte (anciens profils du seed).
 
 ### 6.1b Recherche de kookers (GET /api/v1/kookers) — usage interne
 
@@ -328,6 +361,16 @@ Endpoint conservé pour les recherches internes (dashboard admin, etc.).
 3. Sans recherche texte (`q`) : filtrage en base de données + pagination SQL
 4. Avec recherche texte : tous les kookers actifs chargés, filtrage JavaScript, pagination en mémoire
 5. Les champs JSON (`specialties`, `type`) sont filtrés en JavaScript (pas de support SQL natif)
+
+### 6.1c Géolocalisation (`/api/v1/geo`)
+
+Proxy serveur vers les API publiques françaises (`server/src/lib/geo.ts`, timeout 5 s).
+
+| Endpoint | Auth | Rôle |
+|----------|------|------|
+| `GET /geo/cities?q=` | Public | Autocomplétion de communes par nom (tri par population) ou code postal → `[{ label, city, postalCode, latitude, longitude }]` (6 max) |
+| `GET /geo/reverse?lat=&lng=` | Public | Commune correspondant à une position GPS (bouton « Ma position ») ; conserve la position exacte |
+| `GET /geo/home` | Authentifié | Géolocalise l'adresse « chez moi » du profil d'accueil (`user_profiles` : adresse, code postal, ville) ; `null` si aucune adresse |
 
 ### 6.2 Profil kooker public (GET /api/v1/kookers/:id)
 
@@ -725,6 +768,18 @@ Retourne : nombre d'utilisateurs, de kookers, de réservations, et le revenu tot
 | PUT /admin/testimonials/:id | Modifier (`featured`, `authorName`, `content`, `rating`) |
 | DELETE /admin/testimonials/:id | Supprimer |
 
+### 15.7b Messages de contact
+
+Formulaire public `POST /api/v1/contact` (Zod : `name` ≤ 100, `email` valide, `subject` ≤ 200 optionnel, `message` 1–5000 ; rate limit 5 / 15 min) → table `contact_messages` (`read = false`).
+
+| Endpoint | Action |
+|----------|--------|
+| GET /admin/contact-messages | Liste complète, plus récents d'abord |
+| PUT /admin/contact-messages/:id | `{ read: boolean }` — marquer lu / non lu |
+| DELETE /admin/contact-messages/:id | Supprimer |
+
+Page admin : `/admin/messages-contact` (compteur de non lus, lien `mailto:` pour répondre).
+
 ### 15.8 Configuration dynamique
 
 | Endpoint | Action |
@@ -736,10 +791,10 @@ Retourne : nombre d'utilisateurs, de kookers, de réservations, et le revenu tot
 
 | Clé | Défaut | Usage |
 |-----|--------|-------|
-| `specialties` | Provençale, Méditerranéenne, Pâtisserie, Grillades, Végétarien, Fruits de mer, Italienne, Asiatique | Filtres de recherche |
-| `cities` | Marseille, Aix-en-Provence, Cassis, La Ciotat, Toulon, Nice, Arles, Avignon | Filtres de recherche |
+| `specialties` | Provençale, Méditerranéenne, Pâtisserie, Grillades, Végétarien, Fruits de mer, Italienne, Asiatique | **Seules valeurs autorisées** pour les kookers et les offres (§4.5) + filtre de recherche |
+| `cities` | Marseille, Aix-en-Provence, Cassis, La Ciotat, Toulon, Nice, Arles, Avignon | Plus utilisée par la recherche (remplacée par la recherche par lieu, §6.1) |
 | `allergens` | 14 allergènes réglementaires EU | Création de services |
-| `serviceTypes` | KOOK, KOURS | Types de services |
+| `serviceTypes` | KOOK, COURS | Types de services |
 | `platformCommission` | 20 (%) | Commission sur les paiements |
 
 ---
@@ -868,21 +923,23 @@ APRÈS COMPLETION :
 | Page | Route | Description |
 |------|-------|-------------|
 | HomePage | `/` | Hero, barre de recherche, **prestations vedettes** (ServiceCard via `GET /services/search?featured=true`), témoignages, FAQ |
-| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, ville, prix, difficulté) — `GET /services/search` |
+| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, lieu « Où ? » + « Je peux me déplacer », prix, difficulté, date) — `GET /services/search` |
 | ServiceDetailPage | `/prestation/:id` | Détail prestation : galerie, description, prix, ingrédients, encart kooker, CTA réserver |
 | KookerProfilePage | `/kooker/:id` | Profil complet, services en accordéon, galerie d'images, avis, planning, réservation |
 | LoginPage | `/connexion` | Split-screen login/register |
 | VerifyEmailPage | `/verifier-email` | Page de vérification d'email après inscription |
 | ConfirmEmailChangePage | `/confirmer-email` | Page de confirmation de changement d'email |
-| ContactPage | `/contact` | Formulaire de contact |
+| ContactPage | `/contact` | Formulaire de contact → `POST /contact`, confirmation dans la page (pas de toast) |
 | BookingPage | `/reservation` | Formulaire de réservation — params `?service={id}&kooker={kookerProfileId}` |
 | BookingDetailPage | `/reservation/:id` | Détail réservation, actions contextuelles, modales d'avis/témoignage |
-| PricingPage | `/tarification` | Tarification plateforme |
+| PricingPage | `/tarification` | Tarification plateforme (plus accessible depuis le header ni le footer) |
 | AboutPage | `/a-propos` | À propos de Weekook |
 | BenefitsPage | `/avantages` | Avantages pour les kookers/users |
 | TrustPage | `/confiance` | Confiance et garantie |
 | FaqPage | `/faq` | FAQ |
 | NotFoundPage | `*` | Page 404 |
+
+**Navigation :** header = Accueil, FAQ, A propos. Footer = *Découvrir* (Trouver une expérience, Se connecter / s'inscrire, Pourquoi devenir Kooker ?), *Aide & Confiance* (FAQ, Confiance & sécurité, Charte du Kooker — à venir), *Weekook* (A propos, Nous contacter), liens légaux (à venir), Instagram, TikTok, newsletter.
 
 ### Pages utilisateur authentifié
 
@@ -912,6 +969,7 @@ APRÈS COMPLETION :
 | AdminServicesPage | `/admin/services` | Catalogue des services |
 | AdminTestimonialsPage | `/admin/testimonials` | Gestion des témoignages |
 | AdminReviewsPage | `/admin/avis` | Modération des avis (pending/approved/rejected) |
+| AdminContactMessagesPage | `/admin/messages-contact` | Messages du formulaire de contact |
 | AdminConfigPage | `/admin/config` | Configuration dynamique (spécialités, villes, allergènes, commission) |
 
 ---
@@ -943,7 +1001,11 @@ prisma.$connect()          ← connexion pool établie (~5-10s, une seule fois)
   ↓
 seedConfig()               ← upsert des valeurs de config par défaut
   ↓
+normalizeKookerSpecialties() ← spécialités stockées en texte JSON → listes
+  ↓
 app.listen(PORT)           ← serveur accepte les connexions (Prisma déjà prêt)
+  ↓
+backfillKookerCoordinates() ← (arrière-plan) géolocalise les kookers sans coordonnées
   ↓
 process.send('ready')      ← signal PM2 → reload gracieux
   ↓
@@ -983,7 +1045,9 @@ main     →  (auto-deploy)  →  weekook.com
 |-----------|--------|
 | Prix | Stockés en **centimes** en DB, divisés par 100 pour l'affichage |
 | Durées | Stockées en **minutes** en DB |
-| Champs JSON | `specialties`, `type`, `allergens`, `constraints`, `specialty` : arrays JSON dans MySQL |
+| Champs JSON | `specialties`, `type`, `allergens`, `constraints`, `specialty` : arrays JSON natifs dans MySQL — **jamais** `JSON.stringify(...)` avant Prisma (sinon les filtres `array_contains` ne les trouvent pas) |
+| Durée affichée | Helper client `hasDuration(type, minutes)` : COURS avec durée > 0 uniquement |
+| Spécialités | Liste admin uniquement (`SpecialtyPicker` + `assertAllowedSpecialties`) |
 | Réponses API | `{ success: true, data: ... }` ou `{ success: false, error: ... }` |
 | User authentifié | `req.user.userId` après middleware `authenticate` |
 | IDs affichés | Toujours formatés avec 5 chiffres : `#00042` |
