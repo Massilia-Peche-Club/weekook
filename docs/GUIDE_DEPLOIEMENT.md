@@ -165,6 +165,18 @@ Quand on pousse sur une branche, GitHub Actions exécute ces étapes **sur le se
 6. pm2 reload <process>              ← Redémarre le backend sans downtime
 ```
 
+**Tâches automatiques au démarrage du backend** (à chaque `pm2 reload`, sur tous les environnements) :
+
+| Tâche | Rôle |
+|-------|------|
+| `seedConfig()` | Crée les valeurs de configuration par défaut manquantes (n'écrase jamais l'existant) |
+| `normalizeKookerSpecialties()` | Convertit en listes JSON les spécialités kooker stockées en texte |
+| `backfillKookerCoordinates()` | En arrière-plan : géolocalise les kookers qui ont une ville mais pas de coordonnées |
+
+Ces tâches sont idempotentes : elles ne font rien si les données sont déjà à jour.
+
+**Accès réseau sortant requis** : le serveur appelle `https://geo.api.gouv.fr` et `https://data.geopf.fr` (géolocalisation des villes et adresses — recherche par lieu). Si ces API sont injoignables, l'autocomplétion de ville et la recherche « Chez moi » échouent, mais le reste du site fonctionne.
+
 ### 3.3 Secrets GitHub
 
 Les workflows utilisent des secrets configurés dans **GitHub → Settings → Secrets** :
