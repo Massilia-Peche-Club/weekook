@@ -6,7 +6,6 @@ import { useNotification } from '@/contexts/NotificationContext';
 
 const navLinks = [
   { label: 'Accueil', path: '/' },
-  { label: 'Tarification', path: '/tarification' },
   { label: 'FAQ', path: '/faq' },
   { label: 'A propos', path: '/a-propos' },
 ];
