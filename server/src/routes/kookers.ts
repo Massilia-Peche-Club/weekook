@@ -5,19 +5,25 @@ import { authenticate, requireKooker, invalidateAuthCache } from '../middleware/
 import { validate } from '../middleware/validate.js';
 import { becomeKookerSchema, updateKookerProfileSchema } from '../schemas/kooker.js';
 import { AppError, NotFoundError } from '../utils/errors.js';
-import { geocodeCity } from '../lib/geo.js';
+import { geocodeKookerLocation } from '../lib/geo.js';
 import { assertAllowedSpecialties } from '../utils/specialties.js';
 
-// Coordonnées de la ville : celles envoyées par l'autocomplétion, sinon géocodage serveur
-async function resolveCoordinates(city: string, latitude?: number, longitude?: number) {
-  if (latitude !== undefined && longitude !== undefined) return { latitude, longitude };
+// Coordonnées calculées par le serveur à partir de l'adresse et de la ville du kooker
+// (jamais saisies par l'utilisateur, jamais renvoyées dans les réponses publiques)
+async function resolveCoordinates(address: string | null | undefined, city: string | null | undefined) {
   try {
-    const place = await geocodeCity(city);
-    if (place) return { latitude: place.latitude, longitude: place.longitude };
+    const coords = await geocodeKookerLocation(address, city);
+    if (coords) return coords;
   } catch (e) {
     console.error('[geo] Géocodage impossible:', e);
   }
   return { latitude: null, longitude: null };
+}
+
+// Champs internes retirés des réponses publiques
+function withoutCoordinates<T extends Record<string, any>>(profile: T) {
+  const { latitude: _lat, longitude: _lng, ...rest } = profile;
+  return rest;
 }
 
 const router = Router();
@@ -177,7 +183,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     res.json({
       success: true,
       data: {
-        kookers: paginatedKookers,
+        kookers: paginatedKookers.map(withoutCoordinates),
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -234,6 +240,23 @@ router.get(
 );
 
 // GET /:id - Full kooker profile
+// GET /profile/me - Profil complet du kooker connecté (dashboard), y compris son adresse
+// et même s'il n'est pas encore validé (la route publique /:id masque l'adresse et
+// renvoie 404 pour un profil inactif)
+router.get('/profile/me', authenticate, requireKooker, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const profile = await prisma.kookerProfile.findUnique({
+      where: { id: req.user!.kookerProfileId! },
+      include: { user: { select: { firstName: true, lastName: true, email: true, phone: true, avatar: true } } },
+    });
+    if (!profile) throw new NotFoundError('Profil kooker non trouvé');
+    const { stripeAccountId: _s, ...rest } = withoutCoordinates(profile);
+    res.json({ success: true, data: rest });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -299,7 +322,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       throw new NotFoundError('Profil kooker non trouvé');
     }
 
-    const { bookingsReceived, stripeAccountId, stripeOnboardingComplete, address, userId: _uid, ...kookerData } = kooker as any;
+    const { bookingsReceived, stripeAccountId, stripeOnboardingComplete, address, latitude: _lat, longitude: _lng, userId: _uid, ...kookerData } = kooker as any;
     // BUG-035: expose boolean so frontend can warn when Stripe onboarding is incomplete
     const stripeReady = !!(stripeAccountId && stripeOnboardingComplete);
     const confirmedSlots = (bookingsReceived || []).map((b: any) => {
@@ -337,9 +360,9 @@ router.post(
         throw new AppError('Vous êtes déjà kooker', 409);
       }
 
-      const { bio, specialties, type, city, experience, isCompany, latitude, longitude, serviceRadiusKm } = req.body;
+      const { bio, specialties, type, city, address, experience, isCompany, serviceRadiusKm } = req.body;
       await assertAllowedSpecialties(specialties);
-      const coords = await resolveCoordinates(city, latitude, longitude);
+      const coords = await resolveCoordinates(address, city);
 
       const kookerProfile = await prisma.kookerProfile.create({
         data: {
@@ -348,6 +371,7 @@ router.post(
           specialties,
           type,
           city,
+          address,
           ...coords,
           ...(serviceRadiusKm !== undefined ? { serviceRadiusKm } : {}),
           experience,
@@ -367,7 +391,7 @@ router.post(
 
       res.status(201).json({
         success: true,
-        data: kookerProfile,
+        data: withoutCoordinates(kookerProfile),
       });
     } catch (error) {
       next(error);
@@ -384,7 +408,7 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const kookerProfileId = req.user!.kookerProfileId!;
-      const { bio, specialties, type, city, experience, address, isCompany, latitude, longitude, serviceRadiusKm } = req.body;
+      const { bio, specialties, type, city, experience, address, isCompany, serviceRadiusKm } = req.body;
       if (specialties !== undefined) {
         const current = await prisma.kookerProfile.findUnique({ where: { id: kookerProfileId }, select: { specialties: true } });
         await assertAllowedSpecialties(specialties, current?.specialties);
@@ -394,11 +418,16 @@ router.put(
       if (bio !== undefined) data.bio = bio;
       if (specialties !== undefined) data.specialties = specialties;
       if (type !== undefined) data.type = type;
-      if (city !== undefined) {
-        data.city = city;
-        Object.assign(data, city.trim() ? await resolveCoordinates(city, latitude, longitude) : { latitude: null, longitude: null });
-      }
+      if (city !== undefined) data.city = city;
       if (serviceRadiusKm !== undefined) data.serviceRadiusKm = serviceRadiusKm;
+      // Adresse ou ville modifiée → nouvelles coordonnées
+      if (city !== undefined || address !== undefined) {
+        const current = await prisma.kookerProfile.findUnique({ where: { id: kookerProfileId }, select: { city: true, address: true } });
+        Object.assign(data, await resolveCoordinates(
+          address !== undefined ? address : current?.address,
+          city !== undefined ? city : current?.city,
+        ));
+      }
       if (experience !== undefined) data.experience = experience;
       if (address !== undefined) data.address = address;
       if (isCompany !== undefined) data.isCompany = isCompany;
@@ -410,7 +439,7 @@ router.put(
 
       res.json({
         success: true,
-        data: updated,
+        data: withoutCoordinates(updated),
       });
     } catch (error) {
       next(error);

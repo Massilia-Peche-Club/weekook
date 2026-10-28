@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ServiceCard from '@/components/common/ServiceCard';
-import CityAutocomplete, { type GeoPlace } from '@/components/common/CityAutocomplete';
+import PlaceAutocomplete from '@/components/common/PlaceAutocomplete';
 import { api } from '@/lib/api';
 import { usePageTiming } from '@/hooks/usePageTiming';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,21 +18,12 @@ const SERVICE_PLACEHOLDER_IMAGES = [
 type ServiceType = 'KOOK' | 'COURS' | 'BOTH' | '';
 type SortOption = 'pertinence' | 'prix-asc' | 'prix-desc' | 'note';
 
-// Lieu de la prestation (#82) : « chez moi », ma position ou une ville choisie
+// Lieu de la prestation (#82) : domicile du client (« Chez moi ») ou autre adresse.
+// Le serveur localise l'adresse ; un kooker ressort si elle est dans sa zone d'intervention.
 interface SearchLocation {
-  label: string;
-  lat: number;
-  lng: number;
+  home: boolean;
+  address: string;
 }
-
-// Distance que le client accepte de parcourir (en plus de la zone d'intervention du kooker)
-const TRAVEL_OPTIONS = [
-  { value: '0', label: 'Non, le kooker vient à moi' },
-  { value: '5', label: "Jusqu'à 5 km" },
-  { value: '10', label: "Jusqu'à 10 km" },
-  { value: '20', label: "Jusqu'à 20 km" },
-  { value: '50', label: "Jusqu'à 50 km" },
-];
 
 interface DisplayService {
   id: number;
@@ -70,6 +61,7 @@ interface ApiService {
 
 interface ServicesResponse {
   services: ApiService[];
+  addressNotFound?: boolean;
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
@@ -88,12 +80,8 @@ export default function SearchPage() {
   const initialQuery = searchParams.get('q') || '';
   const initialType = (searchParams.get('type') || '') as ServiceType;
   const initialSpecialty = searchParams.get('specialty') || 'Toutes';
-  const initialLat = parseFloat(searchParams.get('lat') || '');
-  const initialLng = parseFloat(searchParams.get('lng') || '');
-  const initialLocation: SearchLocation | null = !isNaN(initialLat) && !isNaN(initialLng)
-    ? { label: searchParams.get('loc') || 'Lieu choisi', lat: initialLat, lng: initialLng }
-    : null;
-  const initialRadius = searchParams.get('radius') || '0';
+  const initialAddress = searchParams.get('adresse') || '';
+  const initialHome = searchParams.get('chezmoi') === '1';
   const initialMinPrice = searchParams.get('minPrice') || '';
   const initialMaxPrice = searchParams.get('maxPrice') || '';
   const initialDifficulty = searchParams.get('difficulty') || '';
@@ -108,10 +96,9 @@ export default function SearchPage() {
   // Pending filter state (inside the filter panel, not yet applied)
   const [pendingType, setPendingType] = useState<ServiceType>(initialType);
   const [pendingSpecialty, setPendingSpecialty] = useState(initialSpecialty);
+  const initialLocation: SearchLocation | null = initialAddress ? { home: false, address: initialAddress } : null;
   const [pendingLocation, setPendingLocation] = useState<SearchLocation | null>(initialLocation);
-  const [locationText, setLocationText] = useState(initialLocation?.label || '');
-  const [pendingRadius, setPendingRadius] = useState(initialRadius);
-  const [locating, setLocating] = useState(false);
+  const [locationText, setLocationText] = useState(initialAddress);
   const [pendingMinPrice, setPendingMinPrice] = useState(initialMinPrice);
   const [pendingMaxPrice, setPendingMaxPrice] = useState(initialMaxPrice);
   const [pendingDifficulty, setPendingDifficulty] = useState(initialDifficulty);
@@ -121,13 +108,17 @@ export default function SearchPage() {
   const [type, setType] = useState<ServiceType>(initialType);
   const [specialty, setSpecialty] = useState(initialSpecialty);
   const [location, setLocation] = useState<SearchLocation | null>(initialLocation);
-  const [radius, setRadius] = useState(initialRadius);
+  const [addressNotFound, setAddressNotFound] = useState(false);
   const [minPrice, setMinPrice] = useState(initialMinPrice);
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
   const [difficulty, setDifficulty] = useState(initialDifficulty);
   const [date, setDate] = useState(initialDate);
 
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  // Adresse du domicile (profil « Mon profil ») ; undefined = pas encore chargée
+  const [homeAddress, setHomeAddress] = useState<string | null | undefined>(undefined);
+  // Le lieu par défaut (domicile) doit être connu avant la première recherche
+  const [locationReady, setLocationReady] = useState(!!initialAddress);
   const [isLoading, setIsLoading] = useState(true);
   usePageTiming('Recherche', !isLoading);
   const [results, setResults] = useState<DisplayService[]>([]);
@@ -195,11 +186,7 @@ export default function SearchPage() {
       if (query.trim()) params.set('q', query.trim());
       if (type && type !== 'BOTH') params.set('type', type);
       if (specialty !== 'Toutes') params.set('specialty', specialty);
-      if (location) {
-        params.set('lat', String(location.lat));
-        params.set('lng', String(location.lng));
-        if (radius !== '0') params.set('radius', radius);
-      }
+      if (location) params.set('address', location.address);
       if (minPrice) params.set('minPrice', minPrice);
       if (maxPrice) params.set('maxPrice', maxPrice);
       if (difficulty && type === 'COURS') params.set('difficulty', difficulty);
@@ -210,6 +197,7 @@ export default function SearchPage() {
       const queryString = params.toString();
       const path = `/services/search${queryString ? `?${queryString}` : ''}`;
       const res = await api.get<ServicesResponse>(path);
+      setAddressNotFound(!!res.data?.addressNotFound);
 
       if (res.success && res.data) {
         setResults(res.data.services.map(mapService));
@@ -224,10 +212,11 @@ export default function SearchPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [query, type, specialty, location, radius, minPrice, maxPrice, difficulty, date, sort]);
+  }, [query, type, specialty, location, minPrice, maxPrice, difficulty, date, sort]);
 
   // Debounce API calls
   useEffect(() => {
+    if (!locationReady) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       fetchServices();
@@ -235,7 +224,7 @@ export default function SearchPage() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [fetchServices]);
+  }, [fetchServices, locationReady]);
 
   // Sync applied filters to URL
   useEffect(() => {
@@ -243,66 +232,47 @@ export default function SearchPage() {
     if (query) params.set('q', query);
     if (type) params.set('type', type);
     if (specialty !== 'Toutes') params.set('specialty', specialty);
-    if (location) {
-      params.set('loc', location.label);
-      params.set('lat', String(location.lat));
-      params.set('lng', String(location.lng));
-      if (radius !== '0') params.set('radius', radius);
-    }
+    if (location?.home) params.set('chezmoi', '1');
+    else if (location) params.set('adresse', location.address);
+    // Client avec domicile qui cherche sans adresse : ne pas réappliquer « Chez moi » au rechargement
+    else if (homeAddress) params.set('lieu', 'partout');
     if (minPrice) params.set('minPrice', minPrice);
     if (maxPrice) params.set('maxPrice', maxPrice);
     if (difficulty && type === 'COURS') params.set('difficulty', difficulty);
     if (date) params.set('date', date);
     setSearchParams(params, { replace: true });
-  }, [query, type, specialty, location, radius, minPrice, maxPrice, difficulty, date, setSearchParams]);
+  }, [query, type, specialty, location, homeAddress, minPrice, maxPrice, difficulty, date, setSearchParams]);
 
   const chooseLocation = (loc: SearchLocation | null) => {
     setPendingLocation(loc);
-    setLocationText(loc?.label || '');
+    setLocationText(loc && !loc.home ? loc.address : '');
   };
 
-  // « Ma position » : géolocalisation du navigateur, modifiable ensuite
-  const locateMe = () => {
-    if (!navigator.geolocation) {
-      toast.error('La géolocalisation n\'est pas disponible sur cet appareil.');
+  // Adresse du domicile du client connecté : lieu de recherche par défaut
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setHomeAddress(null);
+      setLocationReady(true);
       return;
     }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        let label = 'Ma position';
-        try {
-          const res = await api.get<GeoPlace | null>(`/geo/reverse?lat=${latitude}&lng=${longitude}`);
-          if (res.success && res.data) label = `Ma position (${res.data.city})`;
-        } catch { /* on garde le libellé générique */ }
-        chooseLocation({ label, lat: latitude, lng: longitude });
-        setLocating(false);
-      },
-      () => {
-        toast.error('Impossible de récupérer votre position.');
-        setLocating(false);
-      },
-      { timeout: 10000 }
-    );
-  };
-
-  // « Chez moi » : adresse renseignée dans le profil client
-  const locateHome = async () => {
-    setLocating(true);
-    try {
-      const res = await api.get<GeoPlace | null>('/geo/home');
-      if (res.success && res.data) {
-        chooseLocation({ label: 'Chez moi', lat: res.data.latitude, lng: res.data.longitude });
-      } else {
-        toast.error('Renseignez votre adresse dans « Mon profil » pour utiliser « Chez moi ».');
-      }
-    } catch {
-      toast.error('Impossible de localiser votre adresse.');
-    } finally {
-      setLocating(false);
-    }
-  };
+    api.get<{ address?: string; postalCode?: string; city?: string } | null>('/users/hosting-profile')
+      .then((res) => {
+        const p = res.data;
+        const parts = [p?.address, p?.postalCode, p?.city].filter((x) => x && x.trim());
+        const home = parts.length > 0 ? parts.join(' ') : null;
+        setHomeAddress(home);
+        // Par défaut (ou si l'URL le demande) : prestation chez le client
+        if (home && !initialAddress && (initialHome || !searchParams.has('lieu'))) {
+          const loc = { home: true, address: home };
+          setLocation(loc);
+          setPendingLocation(loc);
+        }
+      })
+      .catch(() => setHomeAddress(null))
+      .finally(() => setLocationReady(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading]);
 
   const applyFilters = () => {
     // BUG-043: validate min ≤ max before applying
@@ -313,7 +283,6 @@ export default function SearchPage() {
     setType(pendingType);
     setSpecialty(pendingSpecialty);
     setLocation(pendingLocation);
-    setRadius(pendingLocation ? pendingRadius : '0');
     setMinPrice(pendingMinPrice);
     setMaxPrice(pendingMaxPrice);
     setDifficulty(pendingType === 'COURS' ? pendingDifficulty : '');
@@ -324,7 +293,6 @@ export default function SearchPage() {
     setPendingType('');
     setPendingSpecialty('Toutes');
     chooseLocation(null);
-    setPendingRadius('0');
     setPendingMinPrice('');
     setPendingMaxPrice('');
     setPendingDifficulty('');
@@ -332,7 +300,6 @@ export default function SearchPage() {
     setType('');
     setSpecialty('Toutes');
     setLocation(null);
-    setRadius('0');
     setMinPrice('');
     setMaxPrice('');
     setDifficulty('');
@@ -520,51 +487,46 @@ export default function SearchPage() {
 
                 {/* Lieu de la prestation */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium text-[#303044]">Où ?</label>
-                  <CityAutocomplete
-                    value={locationText}
-                    onChange={(text) => { setLocationText(text); setPendingLocation(null); }}
-                    onSelect={(place) => chooseLocation({ label: place.label, lat: place.latitude, lng: place.longitude })}
-                    placeholder="Ville ou code postal"
-                    className="w-full h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {user && (
+                  <label className="text-[13px] font-medium text-[#303044]">Adresse de la prestation</label>
+                  {pendingLocation?.home ? (
+                    <div className="flex items-center justify-between gap-2 h-[48px] px-3 bg-[#f3ecff] border-2 border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125]">
+                      <span className="truncate">🏠 Chez moi</span>
                       <button
                         type="button"
-                        onClick={locateHome}
-                        disabled={locating}
-                        className="px-2.5 py-1 rounded-[8px] bg-[#f3ecff] text-[12px] font-medium text-[#303044] hover:bg-[#ece2fe] transition-colors disabled:opacity-50"
+                        onClick={() => chooseLocation(null)}
+                        className="shrink-0 text-[12px] font-medium text-[#6b7280] hover:text-[#111125] transition-colors"
                       >
-                        🏠 Chez moi
+                        Autre adresse
                       </button>
-                    )}
+                    </div>
+                  ) : (
+                    <PlaceAutocomplete
+                      kind="addresses"
+                      value={locationText}
+                      onChange={(text) => {
+                        setLocationText(text);
+                        setPendingLocation(text.trim() ? { home: false, address: text.trim() } : null);
+                      }}
+                      onSelect={(place) => chooseLocation({ home: false, address: place.label })}
+                      placeholder="Adresse, ville ou code postal"
+                      className="w-full h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent"
+                    />
+                  )}
+                  {!pendingLocation?.home && homeAddress && (
                     <button
                       type="button"
-                      onClick={locateMe}
-                      disabled={locating}
-                      className="px-2.5 py-1 rounded-[8px] bg-[#f3ecff] text-[12px] font-medium text-[#303044] hover:bg-[#ece2fe] transition-colors disabled:opacity-50"
+                      onClick={() => chooseLocation({ home: true, address: homeAddress })}
+                      className="self-start px-2.5 py-1 rounded-[8px] bg-[#f3ecff] text-[12px] font-medium text-[#303044] hover:bg-[#ece2fe] transition-colors"
                     >
-                      📍 {locating ? 'Localisation…' : 'Ma position'}
+                      🏠 Chez moi
                     </button>
-                  </div>
+                  )}
+                  {user && homeAddress === null && (
+                    <p className="text-[12px] text-[#6b7280]">
+                      Renseignez votre adresse dans « Mon profil » pour chercher chez vous par défaut.
+                    </p>
+                  )}
                 </div>
-
-                {/* Distance que le client accepte de parcourir */}
-                {pendingLocation && (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-medium text-[#303044]">Je peux me déplacer</label>
-                    <select
-                      value={pendingRadius}
-                      onChange={(e) => setPendingRadius(e.target.value)}
-                      className="h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
-                    >
-                      {TRAVEL_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 {/* Disponibilité */}
                 <div className="flex flex-col gap-1.5">
@@ -638,8 +600,8 @@ export default function SearchPage() {
                 )}
                 {location && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#f3ecff] border border-[#c1a0fd] text-[#c1a0fd] rounded-[8px] text-[12px] font-medium">
-                    📍 {location.label}{radius !== '0' ? ` · ${radius} km` : ''}
-                    <button onClick={() => { setLocation(null); setRadius('0'); chooseLocation(null); setPendingRadius('0'); }} className="hover:text-[#111125] transition-colors">
+                    {location.home ? '🏠 Chez moi' : `📍 ${location.address}`}
+                    <button onClick={() => { setLocation(null); chooseLocation(null); }} className="hover:text-[#111125] transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
@@ -693,7 +655,11 @@ export default function SearchPage() {
           <div className="flex flex-col items-center justify-center -mt-6 pb-24">
             <h3 className="text-[18px] font-semibold text-[#111125] mb-2">Aucun résultat</h3>
             <p className="text-[14px] text-[#6b7280] text-center max-w-[400px] mb-5">
-              Aucune prestation ne correspond à vos critères. Essayez de modifier vos filtres.
+              {addressNotFound
+                ? "Nous n'avons pas trouvé cette adresse. Vérifiez-la ou choisissez une des suggestions."
+                : location
+                  ? "Aucun kooker n'intervient à cette adresse pour ces critères. Essayez une autre adresse ou modifiez vos filtres."
+                  : 'Aucune prestation ne correspond à vos critères. Essayez de modifier vos filtres.'}
             </p>
             <button
               onClick={resetFilters}

@@ -1,11 +1,7 @@
 import { z } from 'zod';
 
-// Zone d'intervention : coordonnées de la ville + rayon en km (#82)
-const locationFields = {
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  serviceRadiusKm: z.number().int().min(1).max(200).optional(),
-};
+// Zone d'intervention en km autour de l'adresse du kooker (#82)
+const serviceRadiusKm = z.number().int().min(1).max(200).optional();
 
 const phoneSchema = z.string().regex(/^[+\d\s\-().]{7,20}$/, 'Format de téléphone invalide').optional();
 
@@ -16,8 +12,9 @@ export const becomeKookerSchema = z.object({
   city: z.string().min(1, 'La ville est requise'),
   experience: z.string().optional(),
   isCompany: z.boolean().optional(),
+  address: z.string().optional(),
   phone: phoneSchema,
-  ...locationFields,
+  serviceRadiusKm,
 });
 
 export const updateKookerProfileSchema = z.object({
@@ -28,7 +25,7 @@ export const updateKookerProfileSchema = z.object({
   experience: z.string().optional(),
   address: z.string().optional(),
   isCompany: z.boolean().optional(),
-  ...locationFields,
+  serviceRadiusKm,
 });
 
 export const updateUserProfileSchema = z.object({

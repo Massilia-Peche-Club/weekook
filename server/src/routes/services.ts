@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js';
 import { createServiceSchema, updateServiceSchema } from '../schemas/service.js';
 import { NotFoundError, ForbiddenError, AppError } from '../utils/errors.js';
 import { assertAllowedSpecialties } from '../utils/specialties.js';
+import { geocodeAddress } from '../lib/geo.js';
 
 const router = Router();
 
@@ -46,9 +47,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       maxPrice,
       featured,
       date,
-      lat,
-      lng,
-      radius,
+      address,
       page = '1',
       limit = '12',
     } = req.query as Record<string, string>;
@@ -61,29 +60,31 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
     if (featured === 'true') kookerFilter.featured = true;
     if (city) kookerFilter.city = { contains: city };
 
-    // Recherche par localisation (#82) : un kooker ressort si le lieu recherché est
-    // dans sa zone d'intervention, ou à moins de `radius` km (distance que le client
-    // accepte de parcourir, ex : Kours chez le kooker).
-    const latNum = parseFloat(lat);
-    const lngNum = parseFloat(lng);
-    let distanceByKooker: Map<number, number> | null = null;
-    if (!isNaN(latNum) && !isNaN(lngNum)) {
-      const clientRadius = Math.min(200, Math.max(0, parseInt(radius) || 0));
-      const rows = await prisma.$queryRaw<{ id: number; distance: number }[]>`
-        SELECT id, distance FROM (
-          SELECT id, service_radius_km,
-            6371 * 2 * ASIN(SQRT(
-              POWER(SIN(RADIANS(latitude - ${latNum}) / 2), 2) +
-              COS(RADIANS(${latNum})) * COS(RADIANS(latitude)) *
-              POWER(SIN(RADIANS(longitude - ${lngNum}) / 2), 2)
-            )) AS distance
-          FROM kooker_profiles
-          WHERE active = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL
-        ) k
-        WHERE distance <= GREATEST(service_radius_km, ${clientRadius})
+    // Recherche par lieu (#82) : adresse de la prestation (domicile du client ou autre
+    // adresse qu'il indique), localisée par le serveur. Un kooker ressort si cette adresse
+    // est dans sa zone d'intervention (service_radius_km autour de son adresse).
+    if (address && address.trim()) {
+      const coords = await geocodeAddress(address.slice(0, 200));
+      if (!coords) {
+        return res.json({
+          success: true,
+          data: {
+            services: [],
+            addressNotFound: true,
+            pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
+          },
+        });
+      }
+      const rows = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM kooker_profiles
+        WHERE active = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+          AND 6371 * 2 * ASIN(SQRT(
+                POWER(SIN(RADIANS(latitude - ${coords.latitude}) / 2), 2) +
+                COS(RADIANS(${coords.latitude})) * COS(RADIANS(latitude)) *
+                POWER(SIN(RADIANS(longitude - ${coords.longitude}) / 2), 2)
+              )) <= service_radius_km
       `;
-      distanceByKooker = new Map(rows.map((r) => [Number(r.id), Number(r.distance)]));
-      kookerFilter.id = { in: [...distanceByKooker.keys()] };
+      kookerFilter.id = { in: rows.map((r) => Number(r.id)) };
     }
     // Spécialité : celle du kooker ou celle de la prestation (listes JSON)
     const specialtyFilter = specialty
@@ -161,9 +162,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
     res.json({
       success: true,
       data: {
-        services: distanceByKooker
-          ? services.map((s) => ({ ...s, distanceKm: Math.round((distanceByKooker!.get(s.kookerProfileId) ?? 0) * 10) / 10 }))
-          : services,
+        services,
         pagination: {
           page: pageNum,
           limit: limitNum,

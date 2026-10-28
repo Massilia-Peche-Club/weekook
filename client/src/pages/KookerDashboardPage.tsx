@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '@/lib/api';
 import SpecialtyPicker from '@/components/common/SpecialtyPicker';
-import CityAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/CityAutocomplete';
+import PlaceAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/PlaceAutocomplete';
 import { hasDuration } from '@/lib/utils';
 import { toast } from 'sonner';
 import PlanningTab from '@/components/dashboard/PlanningTab';
@@ -76,8 +76,6 @@ interface KookerProfile {
   experience: string;
   phone: string;
   address: string;
-  latitude: number | null;
-  longitude: number | null;
   serviceRadiusKm: number;
 }
 
@@ -86,8 +84,6 @@ interface KookerApiProfile {
   bio: string;
   specialties: string;
   city: string;
-  latitude: number | null;
-  longitude: number | null;
   serviceRadiusKm: number;
   type: string;
   experience: string;
@@ -222,8 +218,6 @@ const KookerDashboardPage = () => {
     experience: '',
     phone: '',
     address: '',
-    latitude: null,
-    longitude: null,
     serviceRadiusKm: 30,
   });
   const [originalProfile, setOriginalProfile] = useState<KookerProfile | null>(null);
@@ -323,7 +317,8 @@ const KookerDashboardPage = () => {
     if (!kookerProfileId) return;
     setProfileLoading(true);
     try {
-      const res = await api.get<KookerApiProfile>(`/kookers/${kookerProfileId}`);
+      // Profil du kooker connecté (adresse incluse, même s'il n'est pas encore validé)
+      const res = await api.get<KookerApiProfile>('/kookers/profile/me');
       if (res.success && res.data) {
         const p = res.data;
         const parsed: KookerProfile = {
@@ -334,8 +329,6 @@ const KookerDashboardPage = () => {
           experience: p.experience || '',
           phone: p.user?.phone || '',
           address: p.address || '',
-          latitude: p.latitude ?? null,
-          longitude: p.longitude ?? null,
           serviceRadiusKm: p.serviceRadiusKm ?? 30,
         };
         setProfile(parsed);
@@ -544,9 +537,6 @@ const KookerDashboardPage = () => {
         bio: profile.bio,
         specialties: profile.specialties,
         city: profile.city,
-        ...(profile.latitude !== null && profile.longitude !== null
-          ? { latitude: profile.latitude, longitude: profile.longitude }
-          : {}),
         serviceRadiusKm: profile.serviceRadiusKm,
         type: [profile.type],
         experience: profile.experience,
@@ -1454,10 +1444,11 @@ const KookerDashboardPage = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-medium text-[#111125] mb-1.5">Ville</label>
-                        <CityAutocomplete
+                        <PlaceAutocomplete
+                          kind="cities"
                           value={profile.city}
-                          onChange={(text) => setProfile(prev => ({ ...prev, city: text, latitude: null, longitude: null }))}
-                          onSelect={(place) => setProfile(prev => ({ ...prev, city: place.city, latitude: place.latitude, longitude: place.longitude }))}
+                          onChange={(text) => setProfile(prev => ({ ...prev, city: text }))}
+                          onSelect={(place) => setProfile(prev => ({ ...prev, city: place.city }))}
                           className="w-full h-[48px] px-4 bg-[#f2f4fc] border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20 transition-all"
                         />
                       </div>

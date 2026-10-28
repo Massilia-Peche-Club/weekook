@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import SpecialtyPicker from '@/components/common/SpecialtyPicker';
-import CityAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/CityAutocomplete';
+import PlaceAutocomplete, { SERVICE_RADIUS_OPTIONS } from '@/components/common/PlaceAutocomplete';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,8 +21,6 @@ export default function BecomeKookerPage() {
     phone: '',
     address: '',
     city: '',
-    latitude: null as number | null,
-    longitude: null as number | null,
     serviceRadiusKm: 30,
     description: '',
     specialties: [] as string[],
@@ -50,9 +48,7 @@ export default function BecomeKookerPage() {
         specialties: formData.specialties,
         type: ['KOOK', 'COURS'],
         city: formData.city,
-        ...(formData.latitude !== null && formData.longitude !== null
-          ? { latitude: formData.latitude, longitude: formData.longitude }
-          : {}),
+        address: formData.address,
         serviceRadiusKm: formData.serviceRadiusKm,
         experience: formData.experience + ' ans',
         isCompany: formData.isCompany,
@@ -137,15 +133,12 @@ export default function BecomeKookerPage() {
                     <Label className="text-[14px] font-semibold text-[#111125] mb-2">
                       Ville
                     </Label>
-                    <CityAutocomplete
+                    <PlaceAutocomplete
+                      kind="cities"
                       placeholder="Marseille"
                       value={formData.city}
-                      onChange={(text) =>
-                        setFormData((prev) => ({ ...prev, city: text, latitude: null, longitude: null }))
-                      }
-                      onSelect={(place) =>
-                        setFormData((prev) => ({ ...prev, city: place.city, latitude: place.latitude, longitude: place.longitude }))
-                      }
+                      onChange={(text) => setFormData((prev) => ({ ...prev, city: text }))}
+                      onSelect={(place) => setFormData((prev) => ({ ...prev, city: place.city }))}
                       required
                       className="w-full h-[48px] px-3 bg-white border border-[#e0e2ef] rounded-[12px] text-[14px] text-[#111125] placeholder:text-[#111125]/30 focus:outline-none focus:border-[#c1a0fd] focus:ring-2 focus:ring-[#c1a0fd]/20"
                     />
@@ -169,7 +162,7 @@ export default function BecomeKookerPage() {
                       ))}
                     </select>
                     <p className="text-[12px] text-[#828294] mt-1.5">
-                      Vous apparaîtrez dans les recherches des clients situés dans cette zone.
+                      Calculée à partir de votre adresse : vous apparaîtrez dans les recherches des clients dont l'adresse de prestation est dans cette zone.
                     </p>
                   </div>
 

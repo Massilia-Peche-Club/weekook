@@ -4,45 +4,46 @@ import { api } from '@/lib/api';
 /** Rayons proposés pour la zone d'intervention d'un kooker (km) */
 export const SERVICE_RADIUS_OPTIONS = [5, 10, 20, 30, 50, 100];
 
-export interface GeoPlace {
+/** Suggestion renvoyée par l'API (les coordonnées restent côté serveur) */
+export interface PlaceSuggestion {
   label: string;
   city: string;
   postalCode: string | null;
-  latitude: number;
-  longitude: number;
 }
 
-interface CityAutocompleteProps {
+interface PlaceAutocompleteProps {
+  /** `cities` : communes (profil kooker) — `addresses` : adresses complètes (lieu de la prestation) */
+  kind: 'cities' | 'addresses';
   value: string;
-  /** Saisie libre : la ville n'est plus validée tant qu'une suggestion n'est pas choisie */
   onChange: (text: string) => void;
-  onSelect: (place: GeoPlace) => void;
+  onSelect: (place: PlaceSuggestion) => void;
   placeholder?: string;
   className?: string;
   required?: boolean;
 }
 
-export default function CityAutocomplete({
+export default function PlaceAutocomplete({
+  kind,
   value,
   onChange,
   onSelect,
-  placeholder = 'Ville ou code postal',
+  placeholder = kind === 'cities' ? 'Ville ou code postal' : 'Adresse de la prestation',
   className = '',
   required,
-}: CityAutocompleteProps) {
-  const [suggestions, setSuggestions] = useState<GeoPlace[]>([]);
+}: PlaceAutocompleteProps) {
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Suggestions uniquement quand l'utilisateur tape (pas au chargement d'une valeur existante)
   useEffect(() => {
-    if (!typed || value.trim().length < 2) {
+    if (!typed || value.trim().length < (kind === 'cities' ? 2 : 3)) {
       setSuggestions([]);
       return;
     }
     const timer = setTimeout(() => {
-      api.get<GeoPlace[]>(`/geo/cities?q=${encodeURIComponent(value.trim())}`)
+      api.get<PlaceSuggestion[]>(`/geo/${kind}?q=${encodeURIComponent(value.trim())}`)
         .then((res) => {
           setSuggestions(res.success && res.data ? res.data : []);
           setOpen(true);
@@ -50,7 +51,7 @@ export default function CityAutocomplete({
         .catch(() => setSuggestions([]));
     }, 250);
     return () => clearTimeout(timer);
-  }, [value, typed]);
+  }, [value, typed, kind]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -60,7 +61,7 @@ export default function CityAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const select = (place: GeoPlace) => {
+  const select = (place: PlaceSuggestion) => {
     setTyped(false);
     setOpen(false);
     setSuggestions([]);
@@ -88,7 +89,7 @@ export default function CityAutocomplete({
       {open && suggestions.length > 0 && (
         <ul className="absolute z-30 left-0 right-0 mt-1 bg-white border border-[#e0e2ef] rounded-[12px] shadow-lg overflow-hidden max-h-[260px] overflow-y-auto">
           {suggestions.map((place) => (
-            <li key={`${place.label}-${place.latitude}-${place.longitude}`}>
+            <li key={place.label}>
               <button
                 type="button"
                 onClick={() => select(place)}
