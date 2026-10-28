@@ -175,7 +175,7 @@ Quand on pousse sur une branche, GitHub Actions exécute ces étapes **sur le se
 
 Ces tâches sont idempotentes : elles ne font rien si les données sont déjà à jour.
 
-**Accès réseau sortant requis** : le serveur appelle `https://geo.api.gouv.fr` et `https://data.geopf.fr` (géolocalisation des villes et adresses — recherche par lieu). Si ces API sont injoignables, l'autocomplétion de ville et la recherche « Chez moi » échouent, mais le reste du site fonctionne.
+**Accès réseau sortant requis** : le serveur appelle `https://geo.api.gouv.fr` et `https://data.geopf.fr` (localisation des adresses des kookers et de l'adresse de recherche des clients, autocomplétion). Si ces API sont injoignables, l'autocomplétion et la recherche par adresse échouent (message « adresse introuvable »), mais le reste du site fonctionne. Délai de 8 s avec une nouvelle tentative.
 
 ### 3.3 Secrets GitHub
 

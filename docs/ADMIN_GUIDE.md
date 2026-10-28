@@ -220,7 +220,7 @@ Permet de modifier les listes de valeurs utilisées dans l'application **sans re
 | Liste | Utilisation |
 |-------|-------------|
 | **Spécialités culinaires** | **Seules spécialités que les kookers peuvent choisir** (devenir kooker, profil kooker, création et modification d'offre) + filtre de recherche. Toute autre valeur est refusée par le serveur |
-| **Villes disponibles** | Ancienne liste — n'est plus utilisée : la recherche se fait par lieu et zone d'intervention des kookers |
+| **Villes disponibles** | Ancienne liste — n'est plus utilisée : la recherche se fait à l'adresse de la prestation, selon la zone d'intervention des kookers |
 | **Allergènes** | Sélection dans la création d'offre |
 | **Types de service** | `KOOK` (cuisiner chez le client) / `COURS` (cours de cuisine) |
 

@@ -2,7 +2,7 @@
 
 **Project**: Weekook - Cuisine à Domicile Platform
 **Environment**: Development  
-**Date**: 2026-02-18 (mise à jour 2026-10-23)  
+**Date**: 2026-02-18 (mise à jour 2026-10-28)  
 **Tech Stack**: React 18 + TypeScript + Vite 6 + Express.js + Prisma + MySQL
 
 ---
@@ -82,9 +82,9 @@ model KookerProfile {
   verified        Boolean   @default(false)
   isCompany       Boolean   @default(false) @map("is_company")
   active          Boolean   @default(true)
-  latitude        Float?    // Coordonnées de la ville (géolocalisation)
+  latitude        Float?    // Interne : calculé par le serveur depuis address + city, jamais exposé
   longitude       Float?
-  serviceRadiusKm Int       @default(30) @map("service_radius_km")  // Zone d'intervention (km)
+  serviceRadiusKm Int       @default(30) @map("service_radius_km")  // Zone d'intervention (km) autour de l'adresse
   stripeAccountId          String?   @map("stripe_account_id")
   stripeOnboardingComplete Boolean   @default(false) @map("stripe_onboarding_complete")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -441,7 +441,7 @@ model PageViewLog {
 | Model | Purpose | Key Fields |
 |-------|---------|-----------|
 | **User** | All platform users | id, email, password (bcrypt), firstName, lastName, phone, avatar, role, isAdmin |
-| **KookerProfile** | Professional kooker information | userId, bio, specialties (JSON array, liste admin), type (JSON), city, latitude, longitude, serviceRadiusKm, address, rating, reviewCount, verified, stripeAccountId |
+| **KookerProfile** | Professional kooker information | userId, bio, specialties (JSON array, liste admin), type (JSON), city, address, serviceRadiusKm, latitude/longitude (internes, calculés), rating, reviewCount, verified, stripeAccountId |
 | **UserProfile** | Hosting information for users | userId, address, city, kitchen details, dietary restrictions, allergies |
 | **Service** | Offering (KOOK/COURS) | kookerProfileId, title, type, priceInCents, durationMinutes, maxGuests, ingredients info, equipment |
 | **ServiceImage** | Images for services | serviceId, url, isCardImage, sortOrder |
@@ -585,6 +585,12 @@ model PageViewLog {
   - confirmedSlots (upcoming bookings with status)
 - **Status Codes**: 200, 404 (not found), 400 (invalid ID)
 
+#### GET `/profile/me` (Protected, Kooker Required)
+- **Returns**: profil complet du kooker connecté + `user` (firstName, lastName, email, phone, avatar), adresse incluse ; sans `latitude`, `longitude`, `stripeAccountId`
+- Fonctionne aussi pour un profil non validé (`active: false`) — contrairement à `GET /:id`
+- Utilisé par l'onglet Profil du dashboard kooker
+- **Status Codes**: 200, 401, 403 (not kooker), 404
+
 #### POST `/become` (Protected, Create Kooker Profile)
 - **Validation**: `becomeKookerSchema`
 - **Body**:
@@ -594,15 +600,14 @@ model PageViewLog {
     "specialties": ["string array"],
     "type": ["KOOK" or "COURS"],
     "city": "string",
-    "latitude": "number (optional)",
-    "longitude": "number (optional)",
+    "address": "string (optional)",
     "serviceRadiusKm": "number 1-200 (optional, défaut 30)",
     "experience": "string (optional)",
     "isCompany": "boolean (optional)"
   }
   ```
 - **Spécialités** : doivent appartenir à `configs.specialties` → sinon 400 *"Spécialité non proposée : X. Choisissez dans la liste."*
-- **Géolocalisation** : sans `latitude`/`longitude`, la ville est géolocalisée côté serveur (`geocodeCity`)
+- **Position** : calculée par le serveur depuis `address` + `city` (`geocodeKookerLocation`) ; aucune coordonnée acceptée en entrée ni renvoyée
 - **Creates**: KookerProfile with active=false
 - **Updates**: User role to "kooker"
 - **Invalidates**: Auth cache
@@ -611,11 +616,11 @@ model PageViewLog {
 
 #### PUT `/profile` (Protected, Kooker Required)
 - **Validation**: `updateKookerProfileSchema`
-- **Body**: Any subset of: bio, specialties, type, city, latitude, longitude, serviceRadiusKm, experience, address, isCompany
+- **Body**: Any subset of: bio, specialties, type, city, address, serviceRadiusKm, experience, isCompany
 - **Logic**:
   - `specialties` vérifiées contre la liste admin (les valeurs déjà présentes sur le profil restent acceptées)
-  - `city` envoyé → coordonnées mises à jour (fournies ou géolocalisées ; ville vide → null)
-- **Returns**: Updated KookerProfile
+  - `address` ou `city` envoyé → position recalculée par le serveur (valeur non envoyée = valeur actuelle)
+- **Returns**: Updated KookerProfile (sans latitude/longitude)
 - **Status Codes**: 200, 403 (not kooker), 400 (validation)
 
 ---
@@ -623,13 +628,13 @@ model PageViewLog {
 ### SERVICES ROUTES (`/api/v1/services`)
 
 #### GET `/search` (Search services — public)
-- **Params**: `q`, `type`, `specialty`, `lat`, `lng`, `radius`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `page` (défaut 1), `limit` (défaut 12)
+- **Params**: `q`, `type`, `specialty`, `address`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `page` (défaut 1), `limit` (défaut 12)
 - **Filtres**:
   - Uniquement services `active: true` appartenant à un kooker `active: true`
   - `q` : recherche texte sur titre, description, prénom/nom kooker, spécialités kooker (requête SQL `LOWER(CAST(specialties AS CHAR)) LIKE %q%` → partiel, insensible à la casse)
   - `type` : `array_contains: [type]` sur le tableau JSON `type` du service
   - `specialty` : `array_contains` sur `kookerProfile.specialties` **OU** sur `service.specialty`
-  - `lat` + `lng` : kookers géolocalisés tels que `haversine(lieu, kooker) ≤ GREATEST(service_radius_km, radius)` ; `radius` = distance que le client accepte de parcourir (0–200, défaut 0) ; chaque service retourné porte `distanceKm`
+  - `address` : adresse de la prestation (texte ≤ 200), localisée par le serveur (`geocodeAddress`, BAN, score ≥ 0,5, cache 500) ; kookers actifs tels que `haversine(adresse, kooker) ≤ service_radius_km`. Adresse introuvable → `services: []` + `addressNotFound: true`. Aucune distance ni coordonnée renvoyée
   - `city` : sur `kookerProfile.city` (sous-chaîne) — compatibilité, non utilisé par l'interface
   - `minPrice` / `maxPrice` : sur `priceInCents` (euros → centimes)
   - `difficulty` : sur `koursDifficulty` (COURS uniquement)
@@ -637,7 +642,7 @@ model PageViewLog {
   - `date` (YYYY-MM-DD) : filtre disponibilité — retourne uniquement les services dont le kooker a une disponibilité ce jour-là
 - **Include**: images (isCardImage prioritaire), kookerProfile (id, city, rating, reviewCount, featured, verified, user)
 - **Tri**: `kookerProfile.featured DESC` puis `kookerProfile.rating DESC`
-- **Réponse**: `{ success, data: { services[], pagination: { page, limit, total, totalPages } } }`
+- **Réponse**: `{ success, data: { services[], addressNotFound?: true, pagination: { page, limit, total, totalPages } } }`
 - **Status Codes**: 200
 
 > ⚠️ Cette route est déclarée **avant** `/:id` dans le fichier pour éviter que "search" soit capturé comme un ID.
@@ -1034,17 +1039,13 @@ model PageViewLog {
 
 ### GEO ROUTES (`/api/v1/geo`)
 
-Proxy vers les API publiques françaises (`server/src/lib/geo.ts`) : `geo.api.gouv.fr/communes` et `data.geopf.fr/geocodage/search` (timeout 5 s). Format d'un lieu : `{ label, city, postalCode, latitude, longitude }`.
+Autocomplétion via les API publiques françaises (`server/src/lib/geo.ts`) : `geo.api.gouv.fr/communes` et `data.geopf.fr/geocodage/search` (timeout 8 s, une nouvelle tentative). Format d'une suggestion : `{ label, city, postalCode }` — **sans coordonnées**.
 
 #### GET `/cities?q=` (Public)
-- Nom de commune (≥ 2 caractères, tri par population) ou code postal à 5 chiffres → jusqu'à 6 lieux
+- Nom de commune (≥ 2 caractères, tri par population) ou code postal à 5 chiffres → jusqu'à 6 communes (champ ville des formulaires kooker)
 
-#### GET `/reverse?lat=&lng=` (Public)
-- Commune contenant la position ; la position exacte est conservée dans `latitude`/`longitude`
-- **Status Codes**: 200, 400 (coordonnées invalides)
-
-#### GET `/home` (Protected)
-- Géolocalise l'adresse du profil d'accueil (`user_profiles.address`, `postal_code`, `city`) → lieu `label: "Chez moi"`, ou `null` si aucune adresse
+#### GET `/addresses?q=` (Public)
+- Adresse (≥ 3 caractères, autocomplétion BAN) → jusqu'à 6 adresses (adresse de la prestation dans la recherche)
 
 ---
 
@@ -1225,16 +1226,13 @@ becomeKookerSchema = z.object({
   city: z.string().min(1, 'La ville est requise'),
   experience: z.string().optional(),
   isCompany: z.boolean().optional(),
+  address: z.string().optional(),
   phone: phoneSchema,
-  ...locationFields,
+  serviceRadiusKm,
 });
 
-// Zone d'intervention (#82)
-locationFields = {
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  serviceRadiusKm: z.number().int().min(1).max(200).optional(),
-};
+// Zone d'intervention en km autour de l'adresse (#82) — aucune coordonnée acceptée
+serviceRadiusKm = z.number().int().min(1).max(200).optional();
 
 updateKookerProfileSchema = z.object({
   bio: z.string().optional(),
@@ -1244,7 +1242,7 @@ updateKookerProfileSchema = z.object({
   experience: z.string().optional(),
   address: z.string().optional(),
   isCompany: z.boolean().optional(),
-  ...locationFields,
+  serviceRadiusKm,
 });
 // Les valeurs de `specialties` sont en plus vérifiées dans la route
 // contre la liste admin (assertAllowedSpecialties, voir CONFIGURATION & UTILITIES)
@@ -1542,11 +1540,14 @@ assertAllowedSpecialties(values: string[] | undefined, existing: unknown = []): 
 ### Geo (`server/src/lib/geo.ts`)
 
 ```typescript
-searchCities(query, limit = 6): Promise<GeoPlace[]>   // nom ou code postal
-reverseCity(lat, lng): Promise<GeoPlace | null>
-geocodeAddress(address): Promise<GeoPlace | null>     // Base Adresse Nationale
-geocodeCity(city): Promise<GeoPlace | null>           // champ ville libre ("13006 Marseille")
-backfillKookerCoordinates(): Promise<void>            // au démarrage, kookers sans coordonnées
+suggestCities(query): Promise<PlaceSuggestion[]>       // communes, sans coordonnées
+suggestAddresses(query): Promise<PlaceSuggestion[]>    // adresses BAN, sans coordonnées
+geocodeAddress(address, expectedCity?): Promise<Coordinates | null>
+  // BAN, score ≥ 0,5 ; expectedCity : résultat dans cette commune (comparaison du nom,
+  // la BAN renvoie les codes d'arrondissement pour Paris/Lyon/Marseille) ; cache 500
+geocodeKookerLocation(address, city): Promise<Coordinates | null>
+  // commune via la ville → adresse dans cette commune, sinon centre de la commune
+backfillKookerCoordinates(): Promise<void>             // au démarrage, kookers sans position
 ```
 
 ### Tâches au démarrage (`server/src/app.ts`)
@@ -1661,7 +1662,7 @@ All emails use Resend API + lazy initialization (only creates client if RESEND_A
 
 | Composant | Rôle |
 |-----------|------|
-| `components/common/CityAutocomplete.tsx` | Champ ville avec suggestions (`GET /geo/cities`) ; exporte `SERVICE_RADIUS_OPTIONS` = [5, 10, 20, 30, 50, 100] |
+| `components/common/PlaceAutocomplete.tsx` | Champ avec suggestions : `kind="cities"` (`GET /geo/cities`, formulaires kooker) ou `kind="addresses"` (`GET /geo/addresses`, recherche) ; exporte `SERVICE_RADIUS_OPTIONS` = [5, 10, 20, 30, 50, 100] |
 | `components/common/SpecialtyPicker.tsx` | Choix des spécialités parmi `GET /admin/config/public` ; valeurs hors liste affichées « hors liste », retirables uniquement |
 | `lib/utils.ts` → `hasDuration(type, minutes)` | Durée affichée uniquement pour les COURS avec durée > 0 |
 
@@ -1869,13 +1870,13 @@ APP_URL=https://dev.weekook.com
 - **Email**: Resend API with templates for bookings, password resets, reviews
 - **Admin**: Comprehensive dashboard for KPIs, user management, content moderation
 
-**85 API endpoints** (décompte des routes déclarées dans `server/src/routes/*.ts`, au 2026-10-23) :
+**85 API endpoints** (décompte des routes déclarées dans `server/src/routes/*.ts`, au 2026-10-28) :
 
 | Préfixe | Nb | Couverture |
 |---------|----|-----------|
 | `/auth` | 8 | register, login, logout, me, forgot/reset password, vérification email |
-| `/kookers` | 5 | recherche, profil public, stats dashboard, devenir kooker, profil |
-| `/services` | 7 | recherche (lieu / zone d'intervention), CRUD, image de carte |
+| `/kookers` | 6 | recherche, profil public, profil du kooker connecté, stats dashboard, devenir kooker, profil |
+| `/services` | 7 | recherche (adresse / zone d'intervention), CRUD, image de carte |
 | `/bookings` | 9 | cycle de vie complet avec Stripe |
 | `/reviews` | 4 | user→kooker, kooker→user, consultation |
 | `/messages` | 6 | messagerie interne + notifications email |
@@ -1884,7 +1885,7 @@ APP_URL=https://dev.weekook.com
 | `/testimonials` | 2 | lecture, soumission |
 | `/users` | 5 | profil, avatar, profil d'accueil, changement d'email |
 | `/upload` | 1 | upload de fichier |
-| `/geo` | 3 | communes, position, adresse « chez moi » |
+| `/geo` | 2 | autocomplétion communes et adresses |
 | `/contact` | 1 | formulaire de contact public |
 | `/stripe` | 4 | config publique, Connect onboarding, statut, webhook |
 | `/metrics` | 1 | temps de chargement des pages |

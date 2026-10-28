@@ -1,8 +1,8 @@
 # Spécifications Fonctionnelles — Weekook V2
 
 **Projet** : Weekook — Plateforme de cuisine à domicile
-**Date** : 2026-10-23
-**Version** : 1.1
+**Date** : 2026-10-28
+**Version** : 1.2
 **Usage** : Référence pour tests fonctionnels, recette et automatisation QA
 
 ---
@@ -195,29 +195,30 @@ Un kooker avec 3 offres = 3 cartes distinctes dans les résultats. L'utilisateur
 | Type | Sélection | COURS / KOOK / Tous — une prestation ressort si sa liste de types contient le type choisi |
 | Difficulté | Sélection | Apparaît uniquement si Type = COURS ; valeurs : Débutant, Intermédiaire, Avancé |
 | Spécialité | Sélection | Liste issue de la config admin. Une prestation ressort si la spécialité figure dans les spécialités **de son kooker ou de la prestation elle-même** |
-| Où ? | Autocomplétion + raccourcis | Lieu de la prestation (voir §4.1b) |
-| Je peux me déplacer | Sélection | Visible une fois un lieu choisi : Non (le kooker vient à moi) / 5 / 10 / 20 / 50 km |
+| Adresse de la prestation | Adresse (autocomplétion) | « Chez moi » par défaut pour un client connecté, ou autre adresse (voir §4.1b) |
 | Prix min/max | Numérique | En euros, basé sur le prix de la prestation |
 
-### 4.1b Recherche par lieu et zone d'intervention
+### 4.1b Recherche par adresse et zone d'intervention
 
-Chaque kooker définit une **ville** et une **zone d'intervention** (rayon en km, voir §8.2 et §11.5). La ville est géolocalisée (latitude / longitude).
+**Principe :** la prestation a toujours lieu à l'adresse du client (son domicile ou une autre adresse qu'il indique) — **rien ne se fait chez le kooker**. Chaque kooker définit son adresse, sa ville et une **zone d'intervention** (rayon en km autour de son adresse, voir §8.2 et §11.5). Une prestation ressort si **l'adresse de la prestation est dans la zone d'intervention du kooker**.
 
-**Choix du lieu par le client (champ « Où ? ») :**
-- Saisie d'une ville ou d'un code postal avec suggestions de communes (API publique geo.api.gouv.fr)
-- Bouton **🏠 Chez moi** (client connecté) : utilise l'adresse renseignée dans « Mon profil » ; si aucune adresse → message *"Renseignez votre adresse dans « Mon profil » pour utiliser « Chez moi »."*
-- Bouton **📍 Ma position** : géolocalisation du navigateur (autorisation demandée), libellé *"Ma position (Ville)"*
-- Le lieu reste modifiable à tout moment ; une saisie non validée par une suggestion n'applique aucun filtre de lieu
+**Adresse de la prestation (côté client) :**
+- **Client connecté avec une adresse dans « Mon profil »** : la recherche se fait **par défaut chez lui** (« 🏠 Chez moi »). Bouton **« Autre adresse »** pour en saisir une autre ; bouton **« 🏠 Chez moi »** pour revenir à son domicile
+- **Client connecté sans adresse** : message *"Renseignez votre adresse dans « Mon profil » pour chercher chez vous par défaut."* ; il peut saisir une adresse
+- **Visiteur** : pas de filtre d'adresse tant qu'il n'en saisit pas une
+- Saisie : adresse, ville ou code postal, avec suggestions d'adresses (Base Adresse Nationale)
+- Adresse introuvable → aucun résultat et message *"Nous n'avons pas trouvé cette adresse. Vérifiez-la ou choisissez une des suggestions."*
 
-**Règle de correspondance :** une prestation ressort si la distance entre le lieu du client et la ville du kooker est inférieure ou égale au **plus grand** des deux rayons :
-- la zone d'intervention du kooker (il se déplace jusqu'au client)
-- la distance que le client accepte de parcourir (« Je peux me déplacer », ex. Kours chez le kooker)
+**Règles :**
+- Personne ne saisit de coordonnées : le **système localise lui-même** les adresses (client et kooker). Les coordonnées sont une donnée interne, **jamais affichées ni renvoyées** par l'API
+- Aucune distance n'est affichée dans les résultats
+- Le client ne choisit pas de distance : seule compte la zone d'intervention du kooker
 
-Exemple : kooker à Lyon, zone 30 km → un client à 17 km de Lyon le trouve ; un client à 40 km ne le trouve que s'il accepte de se déplacer d'au moins 40 km.
+Exemple : kooker à Lyon, zone 30 km → un client dont l'adresse est à 17 km de Lyon le trouve ; un client à 40 km ne le trouve pas.
 
-Les kookers sans coordonnées (ville non reconnue) n'apparaissent pas dans une recherche avec lieu. Les profils créés avant cette fonctionnalité sont géolocalisés automatiquement au démarrage du serveur à partir de leur ville.
+Les kookers dont l'adresse et la ville sont introuvables n'apparaissent pas dans une recherche avec adresse. Les profils existants sont localisés automatiquement au démarrage du serveur.
 
-Le lieu (`loc`, `lat`, `lng`) et la distance (`radius`) sont conservés dans l'URL.
+URL : `chezmoi=1` (domicile — l'adresse elle-même n'apparaît pas dans l'URL) ou `adresse=<texte>` ; `lieu=partout` quand un client ayant un domicile cherche sans adresse (le domicile n'est alors pas réappliqué au rechargement).
 
 **Logique des filtres :**
 - Les filtres "en cours de saisie" ne s'appliquent qu'après clic sur "Appliquer"
@@ -457,11 +458,12 @@ cancelled           → Annulation (par client ou kooker)
 **Champs requis :**
 - Téléphone
 - Adresse
-- Ville — autocomplétion de communes ; les coordonnées GPS de la ville sont enregistrées (à défaut, la ville est géolocalisée par le serveur)
+- Ville — autocomplétion de communes
+- L'adresse et la ville sont **enregistrées** ; le serveur en déduit la position du kooker (adresse cherchée dans sa commune, sinon centre de la commune). Aucune coordonnée n'est saisie ni affichée
 - Biographie/Description
 - Spécialités — **sélection parmi la liste admin** (Configuration → Spécialités), pas de saisie libre
 
-**Zone d'intervention :** 5 / 10 / 20 / 30 / 50 / 100 km autour de la ville (défaut 30 km), libellé *"Lyon et 30 km autour"*. Le kooker apparaît dans les recherches des clients situés dans cette zone (§4.1b).
+**Zone d'intervention :** 5 / 10 / 20 / 30 / 50 / 100 km autour de son adresse (défaut 30 km), libellé *"Lyon et 30 km autour"*. Le kooker apparaît dans les recherches dont l'adresse de prestation est dans cette zone (§4.1b).
 
 **Champs optionnels :**
 - Années d'expérience (0–50)
@@ -599,8 +601,8 @@ Chargées via `GET /kookers/dashboard/stats` :
 
 ### 11.5 Onglet Profil kooker
 
-- Chargé via `GET /kookers/:kookerProfileId`
-- Champs modifiables : biographie, spécialités (liste admin, §16.9), ville (autocomplétion), **zone d'intervention** (5 à 100 km), type(s) de prestation, expérience, téléphone, adresse, statut entreprise
+- Chargé via `GET /kookers/profile/me` (profil complet du kooker connecté, adresse incluse, même si le profil n'est pas encore validé)
+- Champs modifiables : biographie, spécialités (liste admin, §16.9), ville (autocomplétion), adresse, **zone d'intervention** (5 à 100 km autour de l'adresse) — modifier l'adresse ou la ville recalcule la position du kooker, type(s) de prestation, expérience, téléphone, adresse, statut entreprise
 - Avatar modifiable (upload → compress → `POST /upload` → `PUT /users/avatar`)
 - Sauvegarde : `PUT /kookers/profile` + `PUT /users/profile`
 
@@ -910,11 +912,13 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | B08 | URL préserve les filtres | Appliquer filtres + copier URL | Recharger l'URL → mêmes filtres appliqués (y compris le lieu) |
 | B09 | Filtre spécialité | Choisir une spécialité de la liste | Offres dont le kooker **ou** l'offre a cette spécialité |
 | B10 | Texte partiel sur spécialité | Saisir "pâtiss" | Kookers avec la spécialité « Pâtisserie » |
-| B11 | Lieu dans la zone du kooker | Kooker Marseille (30 km) ; Où ? = Aubagne | Les offres du kooker sont affichées (≈ 15 km) |
-| B12 | Lieu hors zone | Kooker Marignane (30 km) ; Où ? = Aubagne | Offres absentes (≈ 36 km) |
-| B13 | Client accepte de se déplacer | Où ? = Avignon ; « Je peux me déplacer » = 50 km puis Non | Résultats avec 50 km ; aucun résultat marseillais avec Non |
-| B14 | Chez moi sans adresse | Connecté sans adresse de profil | Clic « Chez moi » → message invitant à renseigner l'adresse |
-| B15 | Ma position | Autoriser la géolocalisation | Lieu = « Ma position (Ville) », modifiable |
+| B11 | Adresse dans la zone du kooker | Kooker Marseille (30 km) ; adresse = 10 cours Maréchal Foch, Aubagne | Les offres du kooker sont affichées |
+| B12 | Adresse hors zone | Kooker Marignane (30 km) ; adresse à Aubagne (≈ 36 km) | Offres de ce kooker absentes |
+| B13 | Chez moi par défaut | Client connecté avec une adresse dans « Mon profil » : ouvrir `/recherche` | « 🏠 Chez moi » appliqué, résultats filtrés sur son domicile |
+| B14 | Chez moi sans adresse | Connecté sans adresse de profil | Message invitant à renseigner l'adresse ; saisie d'une adresse possible |
+| B15 | Autre adresse | Client avec domicile → « Autre adresse » → saisir une adresse → Appliquer | Résultats pour cette adresse ; « 🏠 Chez moi » permet de revenir au domicile |
+| B16 | Adresse introuvable | Saisir « zzzz introuvable » → Appliquer | Aucun résultat, message *"Nous n'avons pas trouvé cette adresse…"* |
+| B17 | Pas de coordonnées ni de distance | Toute recherche avec adresse | Aucune distance affichée ; l'API ne renvoie ni latitude ni longitude |
 
 ---
 
@@ -1001,7 +1005,9 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 
 | # | Scénario | Actions | Résultat attendu |
 |---|----------|---------|-----------------|
-| H01 | Zone d'intervention | Profil kooker : ville = Lyon (suggestion), zone = 20 km, enregistrer | Un client à 17 km trouve le kooker, un client à 25 km non (sauf s'il accepte de se déplacer) |
+| H01 | Zone d'intervention | Profil kooker : ville = Lyon (suggestion), zone = 20 km, enregistrer | Une adresse de prestation à 17 km trouve le kooker, une adresse à 25 km non |
+| H05 | Adresse conservée | Kooker : modifier sa bio et enregistrer | L'adresse du kooker n'est pas effacée |
+| H06 | Devenir kooker — adresse | Remplir adresse + ville, valider | Adresse enregistrée sur le profil kooker |
 | H02 | Devenir kooker — spécialités | Formulaire devenir kooker | Boutons issus de la liste admin, aucune saisie libre |
 | H03 | Header | Ouvrir le site | Pas de lien « Tarification » |
 | H04 | Footer | Bas de page | Rubriques Découvrir / Aide & Confiance / Weekook, liens légaux, Instagram et TikTok |
@@ -1019,4 +1025,4 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 
 ---
 
-*Document généré le 2026-10-02, mis à jour le 2026-10-23 — à maintenir à jour lors de chaque évolution fonctionnelle.*
+*Document généré le 2026-10-02, mis à jour le 2026-10-28 — à maintenir à jour lors de chaque évolution fonctionnelle.*

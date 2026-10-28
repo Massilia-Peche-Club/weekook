@@ -19,7 +19,7 @@ Documentation technique du projet Weekook — plateforme de cuisine à domicile.
 - **Server** : Express.js + Prisma ORM + MySQL
 - **Auth** : JWT httpOnly cookies, bcrypt 12 rounds
 - **Email** : Resend
-- **Géolocalisation** : API publiques geo.api.gouv.fr et Base Adresse Nationale (recherche par lieu et zone d'intervention des kookers)
+- **Géolocalisation** : API publiques geo.api.gouv.fr et Base Adresse Nationale — le serveur localise les adresses (clients et kookers) ; recherche à l'adresse de la prestation selon la zone d'intervention des kookers
 
 ## Démarrage rapide
 

@@ -117,7 +117,7 @@
 
 Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.json({ limit: '1mb' })`).
 
-`Permissions-Policy` : `camera=(), microphone=(), geolocation=(self)` — la géolocalisation est autorisée pour le site lui-même (bouton « Ma position » de la recherche).
+`Permissions-Policy` : `camera=(), microphone=(), geolocation=()` — la géolocalisation du navigateur n'est pas utilisée (les adresses sont localisées par le serveur).
 
 ---
 
@@ -173,8 +173,10 @@ Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.jso
 | `specialties` | string[] | Oui | Valeurs de la liste admin uniquement (voir §4.5) |
 | `type` | string[] | Oui | Types de service (KOOK, COURS) |
 | `city` | string | Oui | Minimum 1 caractère |
-| `latitude` / `longitude` | number | Non | Coordonnées de la ville (fournies par l'autocomplétion). Absentes → la ville est géolocalisée par le serveur |
-| `serviceRadiusKm` | number | Non | Zone d'intervention, 1–200 km, défaut 30 |
+| `address` | string | Non | Adresse du kooker (enregistrée, jamais affichée publiquement) |
+| `serviceRadiusKm` | number | Non | Zone d'intervention autour de son adresse, 1–200 km, défaut 30 |
+
+Aucune coordonnée n'est acceptée en entrée : la position du kooker est calculée par le serveur à partir de `address` + `city` (§4.6).
 | `experience` | string | Non | Ex: "5 ans" |
 | `isCompany` | boolean | Non | Défaut `false` |
 
@@ -197,10 +199,14 @@ Helmet.js avec 13 headers de sécurité HTTP. Body limité à 1 Mo (`express.jso
 
 ### 4.2 Modifier le profil kooker (PUT /api/v1/kookers/profile)
 
-Champs modifiables : `bio`, `specialties`, `type`, `city`, `latitude`, `longitude`, `serviceRadiusKm`, `experience`, `address`, `isCompany` — tous optionnels. Seul le kooker authentifié peut modifier son propre profil.
+Champs modifiables : `bio`, `specialties`, `type`, `city`, `address`, `serviceRadiusKm`, `experience`, `isCompany` — tous optionnels. Seul le kooker authentifié peut modifier son propre profil.
 
-- Si `city` est envoyé : les coordonnées sont mises à jour (celles fournies, sinon géolocalisation serveur ; ville vide → coordonnées effacées)
+- Si `address` ou `city` est envoyé : la position du kooker est recalculée par le serveur (§4.6)
 - `specialties` : vérifiées contre la liste admin, les spécialités déjà présentes sur le profil restant acceptées (§4.5)
+
+### 4.2b Profil du kooker connecté (GET /api/v1/kookers/profile/me)
+
+Auth : kooker. Renvoie le profil complet du kooker connecté (adresse incluse, coordonnées exclues), même si le profil n'est pas encore validé (`active: false`). Utilisé par l'onglet Profil du dashboard : la route publique `GET /kookers/:id` masque l'adresse et renvoie 404 pour un profil inactif — l'adresse était donc effacée à chaque sauvegarde du profil.
 
 ### 4.3 Validation du kooker
 
@@ -235,7 +241,8 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 - **Recherche publique** : filtre `active: true` → les kookers inactifs sont invisibles
 - **Profil public** (GET /kookers/:id) : accessible même si inactif (par URL directe)
 - **Réservations** : les services d'un kooker inactif ne peuvent pas être réservés
-- **Recherche par lieu** : seuls les kookers géolocalisés (latitude/longitude renseignées) peuvent ressortir (§6.1)
+- **Recherche par adresse** : seuls les kookers dont la position a pu être calculée peuvent ressortir (§6.1)
+- **Coordonnées** : jamais renvoyées par l'API (`GET /kookers`, `GET /kookers/:id`, `profile/me`, réponses de création / modification)
 
 ### 4.5 Spécialités — liste admin obligatoire
 
@@ -247,9 +254,12 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 
 ### 4.6 Zone d'intervention
 
-- Champs `kooker_profiles.latitude`, `longitude` (Float, nullable) et `service_radius_km` (Int, défaut 30)
-- Saisie : ville par autocomplétion (`GET /geo/cities`) + choix du rayon (5, 10, 20, 30, 50, 100 km)
-- Au démarrage du serveur, `backfillKookerCoordinates()` géolocalise les profils qui ont une ville mais pas de coordonnées
+- Le kooker saisit son **adresse**, sa **ville** (autocomplétion `GET /geo/cities`) et son **rayon** (5, 10, 20, 30, 50, 100 km ; défaut 30)
+- Champs internes `kooker_profiles.latitude` / `longitude` (Float, nullable) : calculés par le serveur (`geocodeKookerLocation`), jamais saisis ni affichés
+  - la commune est trouvée à partir de la ville (geo.api.gouv.fr)
+  - l'adresse est cherchée dans la Base Adresse Nationale ; le résultat est retenu s'il est dans la même commune (comparaison du nom — la BAN renvoie les codes d'arrondissement pour Paris, Lyon, Marseille) et a un score ≥ 0,5
+  - sinon : centre de la commune
+- Recalcul à chaque modification de l'adresse ou de la ville ; au démarrage, `backfillKookerCoordinates()` traite les profils sans position
 
 ---
 
@@ -313,8 +323,7 @@ L'interface de recherche est centrée sur les **prestations** (et non plus les k
 | `q` | string | Recherche texte sur : titre service, description, prénom/nom kooker, spécialités kooker (partiel, insensible à la casse) |
 | `type` | string | Le tableau JSON `type` du service contient la valeur (`array_contains`) — KOOK / COURS |
 | `specialty` | string | Contenue dans `kookerProfile.specialties` **ou** dans `service.specialty` (`array_contains`) |
-| `lat` / `lng` | number | Lieu du client (voir ci-dessous) |
-| `radius` | number | Distance que le client accepte de parcourir, 0–200 km (défaut 0) |
+| `address` | string | Adresse de la prestation (domicile du client ou autre adresse), ≤ 200 caractères (voir ci-dessous) |
 | `city` | string | `kookerProfile.city` (sous-chaîne) — conservé pour compatibilité, n'est plus utilisé par l'interface |
 | `minPrice` / `maxPrice` | number | Sur `priceInCents` du service (euros → centimes) |
 | `difficulty` | string | `koursDifficulty` (COURS uniquement) |
@@ -330,10 +339,12 @@ L'interface de recherche est centrée sur les **prestations** (et non plus les k
 3. Pagination SQL native
 4. Include : images (isCardImage prioritaire), kookerProfile avec user (avatar, nom)
 
-**Recherche par lieu (`lat` + `lng`) :**
-- Distance calculée en SQL (formule de haversine) entre le lieu et la ville de chaque kooker actif géolocalisé
-- Un kooker ressort si `distance ≤ GREATEST(service_radius_km, radius)` : le lieu est dans sa zone d'intervention, ou le client accepte de se déplacer jusqu'à lui
-- Chaque service retourné porte `distanceKm` (arrondi à 0,1 km)
+**Recherche par adresse (`address`) :**
+- L'adresse est localisée par le serveur (Base Adresse Nationale, score ≥ 0,5, cache mémoire de 500 adresses)
+- Adresse introuvable → `{ services: [], addressNotFound: true }`
+- Distance calculée en SQL (formule de haversine) entre l'adresse et la position de chaque kooker actif
+- Un kooker ressort si `distance ≤ service_radius_km` : l'adresse est dans **sa** zone d'intervention. Le client ne choisit aucune distance ; rien ne se fait chez le kooker
+- Aucune distance ni coordonnée n'est renvoyée
 
 **Champs JSON :** les filtres `type` et `specialty` utilisent `array_contains` et ne trouvent que des listes JSON natives. Au démarrage, `normalizeKookerSpecialties()` (`app.ts`) convertit en listes les spécialités kooker stockées en texte (anciens profils du seed).
 
@@ -364,13 +375,14 @@ Endpoint conservé pour les recherches internes (dashboard admin, etc.).
 
 ### 6.1c Géolocalisation (`/api/v1/geo`)
 
-Proxy serveur vers les API publiques françaises (`server/src/lib/geo.ts`, timeout 5 s).
+Autocomplétion via les API publiques françaises (`server/src/lib/geo.ts`, timeout 8 s, une nouvelle tentative). Les suggestions ne contiennent **pas** de coordonnées : `[{ label, city, postalCode }]` (6 max).
 
 | Endpoint | Auth | Rôle |
 |----------|------|------|
-| `GET /geo/cities?q=` | Public | Autocomplétion de communes par nom (tri par population) ou code postal → `[{ label, city, postalCode, latitude, longitude }]` (6 max) |
-| `GET /geo/reverse?lat=&lng=` | Public | Commune correspondant à une position GPS (bouton « Ma position ») ; conserve la position exacte |
-| `GET /geo/home` | Authentifié | Géolocalise l'adresse « chez moi » du profil d'accueil (`user_profiles` : adresse, code postal, ville) ; `null` si aucune adresse |
+| `GET /geo/cities?q=` | Public | Communes par nom (≥ 2 caractères, tri par population) ou code postal — champ ville des formulaires kooker |
+| `GET /geo/addresses?q=` | Public | Adresses (≥ 3 caractères, Base Adresse Nationale) — adresse de la prestation dans la recherche |
+
+« Chez moi » : le client utilise l'adresse de son profil d'accueil (`GET /users/hosting-profile`), envoyée en texte dans `address`.
 
 ### 6.2 Profil kooker public (GET /api/v1/kookers/:id)
 
@@ -923,7 +935,7 @@ APRÈS COMPLETION :
 | Page | Route | Description |
 |------|-------|-------------|
 | HomePage | `/` | Hero, barre de recherche, **prestations vedettes** (ServiceCard via `GET /services/search?featured=true`), témoignages, FAQ |
-| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, lieu « Où ? » + « Je peux me déplacer », prix, difficulté, date) — `GET /services/search` |
+| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, adresse de la prestation — « Chez moi » par défaut, prix, difficulté, date) — `GET /services/search` |
 | ServiceDetailPage | `/prestation/:id` | Détail prestation : galerie, description, prix, ingrédients, encart kooker, CTA réserver |
 | KookerProfilePage | `/kooker/:id` | Profil complet, services en accordéon, galerie d'images, avis, planning, réservation |
 | LoginPage | `/connexion` | Split-screen login/register |
