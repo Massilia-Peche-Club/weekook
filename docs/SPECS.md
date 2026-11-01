@@ -2,7 +2,7 @@
 
 **Project**: Weekook - Cuisine à Domicile Platform
 **Environment**: Development  
-**Date**: 2026-02-18 (mise à jour 2026-10-28)  
+**Date**: 2026-02-18 (mise à jour 2026-11-01)  
 **Tech Stack**: React 18 + TypeScript + Vite 6 + Express.js + Prisma + MySQL
 
 ---
@@ -628,7 +628,7 @@ model PageViewLog {
 ### SERVICES ROUTES (`/api/v1/services`)
 
 #### GET `/search` (Search services — public)
-- **Params**: `q`, `type`, `specialty`, `address`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `page` (défaut 1), `limit` (défaut 12)
+- **Params**: `q`, `type`, `specialty`, `address`, `city`, `minPrice`, `maxPrice`, `difficulty`, `featured`, `date`, `dateTo`, `page` (défaut 1), `limit` (défaut 12)
 - **Filtres**:
   - Uniquement services `active: true` appartenant à un kooker `active: true`
   - `q` : recherche texte sur titre, description, prénom/nom kooker, spécialités kooker (requête SQL `LOWER(CAST(specialties AS CHAR)) LIKE %q%` → partiel, insensible à la casse)
@@ -639,7 +639,7 @@ model PageViewLog {
   - `minPrice` / `maxPrice` : sur `priceInCents` (euros → centimes)
   - `difficulty` : sur `koursDifficulty` (COURS uniquement)
   - `featured` : `kookerProfile.featured = true`
-  - `date` (YYYY-MM-DD) : filtre disponibilité — retourne uniquement les services dont le kooker a une disponibilité ce jour-là
+  - `date` (YYYY-MM-DD) [+ `dateTo`] : filtre disponibilité — services dont le kooker a au moins un créneau `isAvailable` le jour `date`, ou entre `date` et `dateTo` inclus ; 400 *"La date de fin doit être postérieure ou égale à la date de début"* si `dateTo` < `date` ; `dateTo` ignoré sans `date`
 - **Include**: images (isCardImage prioritaire), kookerProfile (id, city, rating, reviewCount, featured, verified, user)
 - **Tri**: `kookerProfile.featured DESC` puis `kookerProfile.rating DESC`
 - **Réponse**: `{ success, data: { services[], addressNotFound?: true, pagination: { page, limit, total, totalPages } } }`
@@ -1278,6 +1278,11 @@ updateHostingProfileSchema = z.object({
 ### Service Schemas (`server/src/schemas/service.ts`)
 
 ```typescript
+// Une prestation = exactement un type (KOOK ou COURS) ; 'KOURS' converti en 'COURS'
+serviceType = z.array(z.string()).transform(normalizeTypes)
+  .refine((t) => t.length === 1 && (t[0] === 'KOOK' || t[0] === 'COURS'),
+          'Une prestation doit avoir un seul type : KOOK ou COURS');
+
 const menuItemSchema = z.object({
   category: z.string(),
   name: z.string(),
@@ -1293,7 +1298,7 @@ const ingredientItemSchema = z.object({
 createServiceSchema = z.object({
   title: z.string().min(1, 'Le titre est requis'),
   description: z.string().optional(),
-  type: z.array(z.string()).min(1, 'Au moins un type est requis'),
+  type: serviceType,  // exactement un type : ['KOOK'] ou ['COURS'] ('KOURS' → 'COURS')
   priceInCents: z.number().min(0, 'Le prix doit etre positif'),
   durationMinutes: z.number().min(0), // 0 pour les KOOK (durée désactivée en MVP)
   minGuests: z.number().optional(),
@@ -1319,7 +1324,7 @@ createServiceSchema = z.object({
 updateServiceSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
-  type: z.array(z.string()).optional(),
+  type: serviceType.optional(),
   priceInCents: z.number().min(0).optional(),
   durationMinutes: z.number().min(0).optional(),
   minGuests: z.number().optional(),

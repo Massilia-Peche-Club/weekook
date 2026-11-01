@@ -272,7 +272,7 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 | Champ | Type | Requis | Règle |
 |-------|------|--------|-------|
 | `title` | string | Oui | Non vide |
-| `type` | string[] | Oui | Au moins 1 type (KOOK, KOURS) |
+| `type` | string[] | Oui | **Exactement un** type : `["KOOK"]` ou `["COURS"]` (`KOURS` converti en `COURS`) ; double type refusé (400) |
 | `priceInCents` | number | Oui | ≥ 0 (stocké en centimes) |
 | `durationMinutes` | number | Oui | ≥ 0. **KOOK : 0** (durée désactivée en MVP, ni saisie ni affichée) ; COURS : ≥ 1 côté formulaire |
 | `description` | string | Non | Max 2000 caractères |
@@ -328,7 +328,8 @@ L'interface de recherche est centrée sur les **prestations** (et non plus les k
 | `minPrice` / `maxPrice` | number | Sur `priceInCents` du service (euros → centimes) |
 | `difficulty` | string | `koursDifficulty` (COURS uniquement) |
 | `featured` | boolean | `kookerProfile.featured = true` |
-| `date` | string (YYYY-MM-DD) | Filtre sur la disponibilité — retourne uniquement les kookers ayant une disponibilité ce jour-là |
+| `date` | string (YYYY-MM-DD) | Disponibilité : date seule, ou début de période |
+| `dateTo` | string (YYYY-MM-DD) | Fin de période (facultatif, inclus, ignoré sans `date`). Retourne les services dont le kooker a au moins un créneau `isAvailable` entre `date` et `dateTo` ; 400 si `dateTo` < `date` |
 | `page` | number | Défaut 1 |
 | `limit` | number | Défaut 12 |
 
@@ -935,7 +936,7 @@ APRÈS COMPLETION :
 | Page | Route | Description |
 |------|-------|-------------|
 | HomePage | `/` | Hero, barre de recherche, **prestations vedettes** (ServiceCard via `GET /services/search?featured=true`), témoignages, FAQ |
-| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, adresse de la prestation — « Chez moi » par défaut, prix, difficulté, date) — `GET /services/search` |
+| SearchPage | `/recherche` | Recherche **prestations** avec filtres (type, spécialité, adresse de la prestation — « Chez moi » par défaut, prix, difficulté, disponibilité sur une date ou une période) — `GET /services/search` |
 | ServiceDetailPage | `/prestation/:id` | Détail prestation : galerie, description, prix, ingrédients, encart kooker, CTA réserver |
 | KookerProfilePage | `/kooker/:id` | Profil complet, services en accordéon, galerie d'images, avis, planning, réservation |
 | LoginPage | `/connexion` | Split-screen login/register |

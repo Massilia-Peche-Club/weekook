@@ -1,7 +1,7 @@
 # Spécifications Fonctionnelles — Weekook V2
 
 **Projet** : Weekook — Plateforme de cuisine à domicile
-**Date** : 2026-10-28
+**Date** : 2026-11-01
 **Version** : 1.2
 **Usage** : Référence pour tests fonctionnels, recette et automatisation QA
 
@@ -192,9 +192,10 @@ Un kooker avec 3 offres = 3 cartes distinctes dans les résultats. L'utilisateur
 | Filtre | Type | Comportement |
 |--------|------|-------------|
 | Recherche texte | Saisie libre | Recherche sur titre de la prestation, description, nom kooker, spécialités du kooker (recherche partielle, insensible à la casse : « orient » trouve « Orientale ») |
-| Type | Sélection | COURS / KOOK / Tous — une prestation ressort si sa liste de types contient le type choisi |
+| Type | Sélection | COURS / KOOK / Tous — chaque prestation a **un seul type** (repas KOOK ou cours COURS) |
 | Difficulté | Sélection | Apparaît uniquement si Type = COURS ; valeurs : Débutant, Intermédiaire, Avancé |
 | Spécialité | Sélection | Liste issue de la config admin. Une prestation ressort si la spécialité figure dans les spécialités **de son kooker ou de la prestation elle-même** |
+| Disponibilité | Date « Du » + date « Au » facultative | Une date : kookers ayant au moins un créneau disponible ce jour-là. Une période (Du → Au, bornes incluses) : au moins un créneau disponible dans la période. « Au » n'est actif qu'une fois « Du » choisi, et ne peut pas précéder « Du » ; dates passées impossibles. URL : `date`, `dateFin` |
 | Adresse de la prestation | Adresse (autocomplétion) | « Chez moi » par défaut pour un client connecté, ou autre adresse (voir §4.1b) |
 | Prix min/max | Numérique | En euros, basé sur le prix de la prestation |
 
@@ -544,6 +545,7 @@ Via `GET /admin/config/public` :
 
 - Chargement initial : `GET /services/:id`
 - Formulaire identique à la création, pré-rempli
+- **Type exclusif** : une offre existante est soit un repas (KOOK), soit un cours (COURS) — pas les deux (le serveur refuse une offre à double type)
 - Seul le propriétaire du service peut le modifier → sinon erreur `403` : *"Vous ne pouvez modifier que vos propres services"*
 - Soumission : `PUT /services/:id`
 - Les photos et items de menu sont remplacés intégralement
@@ -909,7 +911,12 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | B05 | Filtre prix | Min = 50€, Max = 100€ | Kookers dont le prix min d'offre est entre 50 et 100€ |
 | B06 | Aucun résultat | Filtres très restrictifs | Message "Aucun résultat", suggestion de modifier les filtres |
 | B07 | Réinitialiser les filtres | Clic "Réinitialiser" | Tous les filtres vidés, recherche relancée |
-| B08 | URL préserve les filtres | Appliquer filtres + copier URL | Recharger l'URL → mêmes filtres appliqués (y compris le lieu) |
+| B08 | URL préserve les filtres | Appliquer filtres + copier URL | Recharger l'URL → mêmes filtres appliqués (y compris le lieu et la période) |
+| B18 | Disponibilité — date seule | Du = une date où un kooker a un créneau | Seules les offres des kookers disponibles ce jour-là ; tag « 📅 JJ/MM/AAAA » |
+| B19 | Disponibilité — période | Du + Au couvrant au moins un jour disponible | Offres des kookers disponibles au moins un jour de la période ; tag « 📅 Du … au … » |
+| B20 | Période sans disponibilité | Du + Au hors de toute disponibilité | Aucun résultat |
+| B21 | Champ « Au » | Sans date « Du » | Champ « Au » grisé ; une fois Du choisi, impossible de choisir une date antérieure |
+| B22 | Filtre COURS | Type = COURS | Aucun repas (badge « Repas ») dans les résultats |
 | B09 | Filtre spécialité | Choisir une spécialité de la liste | Offres dont le kooker **ou** l'offre a cette spécialité |
 | B10 | Texte partiel sur spécialité | Saisir "pâtiss" | Kookers avec la spécialité « Pâtisserie » |
 | B11 | Adresse dans la zone du kooker | Kooker Marseille (30 km) ; adresse = 10 cours Maréchal Foch, Aubagne | Les offres du kooker sont affichées |
@@ -961,6 +968,8 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | D14 | Spécialité hors liste via API | Kooker connecté | `POST /services` avec une spécialité inexistante | Erreur 400 *"Spécialité non proposée…"* |
 | D15 | Ancienne spécialité conservée | Offre avec spécialité retirée de la liste | Modifier l'offre sans toucher aux spécialités | Sauvegarde OK ; spécialité affichée « hors liste » |
 | D07 | Modifier son offre | Propriétaire | Modifier et soumettre | Service mis à jour, toast confirmation |
+| D16 | Type en modification | Propriétaire | Ouvrir une offre KOOK, cliquer COURS | Le type bascule (un seul type coché), jamais les deux |
+| D17 | Double type via API | Kooker connecté | `POST /services` avec `type: ["KOOK","COURS"]` | Erreur 400 *"Une prestation doit avoir un seul type : KOOK ou COURS"* |
 | D08 | Modifier l'offre d'un autre | Autre kooker | Appel `PUT /services/:id` | Erreur 403 |
 | D09 | Désactiver une offre | Kooker connecté | Toggle inactif | Offre disparaît des résultats de recherche |
 | D10 | Supprimer une offre | Kooker connecté | Confirmer suppression | Service supprimé, plus dans la liste |
@@ -1025,4 +1034,4 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 
 ---
 
-*Document généré le 2026-10-02, mis à jour le 2026-10-28 — à maintenir à jour lors de chaque évolution fonctionnelle.*
+*Document généré le 2026-10-02, mis à jour le 2026-11-01 — à maintenir à jour lors de chaque évolution fonctionnelle.*
