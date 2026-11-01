@@ -47,6 +47,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
       maxPrice,
       featured,
       date,
+      dateTo,
       address,
       page = '1',
       limit = '12',
@@ -93,11 +94,17 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
           { specialty: { array_contains: [specialty] } },
         ]
       : null;
-    if (date) {
-      const dateObj = new Date(date);
-      if (!isNaN(dateObj.getTime())) {
-        kookerFilter.availabilities = { some: { date: dateObj, isAvailable: true } };
+    // Disponibilité (#12) : une date (`date`) ou une période (`date` → `dateTo`, bornes
+    // incluses). Le kooker ressort s'il a au moins un créneau disponible dans la période.
+    // Les disponibilités sont stockées par jour, à minuit UTC.
+    const isDay = (d?: string) => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(new Date(d).getTime());
+    if (isDay(date)) {
+      const from = new Date(date);
+      const to = isDay(dateTo) ? new Date(dateTo) : from;
+      if (to < from) {
+        throw new AppError('La date de fin doit être postérieure ou égale à la date de début', 400);
       }
+      kookerFilter.availabilities = { some: { date: { gte: from, lte: to }, isAvailable: true } };
     }
 
     const serviceWhere: Record<string, unknown> = {

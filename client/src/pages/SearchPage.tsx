@@ -86,6 +86,7 @@ export default function SearchPage() {
   const initialMaxPrice = searchParams.get('maxPrice') || '';
   const initialDifficulty = searchParams.get('difficulty') || '';
   const initialDate = searchParams.get('date') || '';
+  const initialDateTo = initialDate ? (searchParams.get('dateFin') || '') : '';
   const initialSort = (searchParams.get('sort') || 'pertinence') as SortOption;
 
   // Immediate state
@@ -103,6 +104,7 @@ export default function SearchPage() {
   const [pendingMaxPrice, setPendingMaxPrice] = useState(initialMaxPrice);
   const [pendingDifficulty, setPendingDifficulty] = useState(initialDifficulty);
   const [pendingDate, setPendingDate] = useState(initialDate);
+  const [pendingDateTo, setPendingDateTo] = useState(initialDateTo);
 
   // Applied filter state (sent to API)
   const [type, setType] = useState<ServiceType>(initialType);
@@ -112,7 +114,9 @@ export default function SearchPage() {
   const [minPrice, setMinPrice] = useState(initialMinPrice);
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
   const [difficulty, setDifficulty] = useState(initialDifficulty);
+  // Disponibilité (#12) : date seule (`date`) ou période `date` → `dateTo`
   const [date, setDate] = useState(initialDate);
+  const [dateTo, setDateTo] = useState(initialDateTo);
 
   const { user, isLoading: authLoading } = useAuth();
   // Adresse du domicile (profil « Mon profil ») ; undefined = pas encore chargée
@@ -191,6 +195,7 @@ export default function SearchPage() {
       if (maxPrice) params.set('maxPrice', maxPrice);
       if (difficulty && type === 'COURS') params.set('difficulty', difficulty);
       if (date) params.set('date', date);
+      if (date && dateTo) params.set('dateTo', dateTo);
       if (sort !== 'pertinence') params.set('sort', sort);
       params.set('limit', '12');
 
@@ -212,7 +217,7 @@ export default function SearchPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [query, type, specialty, location, minPrice, maxPrice, difficulty, date, sort]);
+  }, [query, type, specialty, location, minPrice, maxPrice, difficulty, date, dateTo, sort]);
 
   // Debounce API calls
   useEffect(() => {
@@ -240,8 +245,9 @@ export default function SearchPage() {
     if (maxPrice) params.set('maxPrice', maxPrice);
     if (difficulty && type === 'COURS') params.set('difficulty', difficulty);
     if (date) params.set('date', date);
+    if (date && dateTo) params.set('dateFin', dateTo);
     setSearchParams(params, { replace: true });
-  }, [query, type, specialty, location, homeAddress, minPrice, maxPrice, difficulty, date, setSearchParams]);
+  }, [query, type, specialty, location, homeAddress, minPrice, maxPrice, difficulty, date, dateTo, setSearchParams]);
 
   const chooseLocation = (loc: SearchLocation | null) => {
     setPendingLocation(loc);
@@ -287,6 +293,8 @@ export default function SearchPage() {
     setMaxPrice(pendingMaxPrice);
     setDifficulty(pendingType === 'COURS' ? pendingDifficulty : '');
     setDate(pendingDate);
+    // Fin identique au début = une seule date
+    setDateTo(pendingDate && pendingDateTo && pendingDateTo !== pendingDate ? pendingDateTo : '');
   };
 
   const resetFilters = () => {
@@ -297,6 +305,7 @@ export default function SearchPage() {
     setPendingMaxPrice('');
     setPendingDifficulty('');
     setPendingDate('');
+    setPendingDateTo('');
     setType('');
     setSpecialty('Toutes');
     setLocation(null);
@@ -304,6 +313,7 @@ export default function SearchPage() {
     setMaxPrice('');
     setDifficulty('');
     setDate('');
+    setDateTo('');
     setQuery('');
   };
 
@@ -528,28 +538,51 @@ export default function SearchPage() {
                   )}
                 </div>
 
-                {/* Disponibilité */}
+                {/* Disponibilité : une date ou une période (#12) */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[13px] font-medium text-[#303044]">Disponibilité</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      min={todayStr}
-                      value={pendingDate}
-                      onChange={(e) => setPendingDate(e.target.value)}
-                      className="w-full h-[48px] px-3 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[14px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
-                    />
+                  <div className="flex items-center gap-2 h-[48px]">
+                    <div className="relative flex-1">
+                      <input
+                        type="date"
+                        aria-label="Disponible du"
+                        title="Du"
+                        min={todayStr}
+                        value={pendingDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPendingDate(v);
+                          if (!v || (pendingDateTo && pendingDateTo < v)) setPendingDateTo('');
+                        }}
+                        className="w-full h-[48px] px-2 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[13px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer"
+                      />
+                    </div>
+                    <span className="text-[#9ca3af] text-[14px] flex-shrink-0">→</span>
+                    <div className="relative flex-1">
+                      <input
+                        type="date"
+                        aria-label="Disponible jusqu'au"
+                        title={pendingDate ? 'Au (facultatif)' : "Choisissez d'abord la date de début"}
+                        min={pendingDate || todayStr}
+                        value={pendingDateTo}
+                        disabled={!pendingDate}
+                        onChange={(e) => setPendingDateTo(e.target.value)}
+                        className="w-full h-[48px] px-2 bg-white border-2 border-[#e0e0e6] hover:border-[#c1a0fd] rounded-[12px] text-[13px] text-[#111125] focus:outline-none focus:ring-2 focus:ring-[#c1a0fd] focus:border-transparent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[12px] text-[#6b7280]">
+                    Une date, ou une période en ajoutant une date de fin
                     {pendingDate && (
                       <button
-                        onClick={() => setPendingDate('')}
-                        className="absolute inset-y-0 right-8 flex items-center text-[#9ca3af] hover:text-[#111125] transition-colors"
+                        type="button"
+                        onClick={() => { setPendingDate(''); setPendingDateTo(''); }}
+                        className="ml-2 underline hover:text-[#111125] transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        Effacer
                       </button>
                     )}
-                  </div>
+                  </p>
                 </div>
               </div>
 
@@ -620,8 +653,10 @@ export default function SearchPage() {
                 )}
                 {date && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#f3ecff] border border-[#c1a0fd] text-[#c1a0fd] rounded-[8px] text-[12px] font-medium">
-                    📅 {date.split('-').reverse().join('/')}
-                    <button onClick={() => { setDate(''); setPendingDate(''); }} className="hover:text-[#111125] transition-colors">
+                    📅 {dateTo
+                      ? `Du ${date.split('-').reverse().join('/')} au ${dateTo.split('-').reverse().join('/')}`
+                      : date.split('-').reverse().join('/')}
+                    <button onClick={() => { setDate(''); setDateTo(''); setPendingDate(''); setPendingDateTo(''); }} className="hover:text-[#111125] transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
