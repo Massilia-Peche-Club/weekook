@@ -115,7 +115,7 @@ export default function EditMenuPage() {
         if (res.success && res.data) {
           const s = res.data;
           const types: string[] = Array.isArray(s.type) ? s.type : JSON.parse(s.type || '[]');
-          setServiceTypes(types);
+          setServiceTypes(types.slice(0, 1)); // une offre = un seul type
 
           // Populate COURS or KOOK fields based on type
           if (types.includes('COURS')) {
@@ -167,14 +167,10 @@ export default function EditMenuPage() {
 
   // ────────────────────────── Type Toggle ──────────────────────────
 
+  // Une offre existante a un seul type (KOOK ou COURS) : le choix est exclusif.
+  // (Cocher les deux transformait l'offre en « repas + cours », visible dans les deux filtres.)
   const toggleType = (type: string) => {
-    setServiceTypes((prev) => {
-      const next = prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type];
-      if (next.length === 2) {
-        toast.info('La 2ème offre est visible sous la première, en scrollant');
-      }
-      return next;
-    });
+    setServiceTypes([type]);
   };
 
   // ────────────────────────── COURS completeness ──────────────────────────
@@ -258,7 +254,7 @@ export default function EditMenuPage() {
       const data = {
         title: isKours ? koursTitle : kookTitle,
         description: isKours ? koursDescription : kookDescription,
-        type: serviceTypes,
+        type: [type],
         priceInCents: Math.round(parseFloat(isKours ? koursPrice : kookPrice) * 100),
         extraGuestPriceInCents: isKours
           ? (koursExtraGuestPrice ? Math.round(parseFloat(koursExtraGuestPrice) * 100) : undefined)

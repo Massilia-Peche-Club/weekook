@@ -15,10 +15,20 @@ const ingredientItemSchema = z.object({
 // Normalize legacy 'KOURS' → 'COURS'
 const normalizeTypes = (types: string[]) => types.map((t) => (t === 'KOURS' ? 'COURS' : t));
 
+// Une prestation a exactement un type : un repas (KOOK) OU un cours (COURS).
+// Le formulaire crée une prestation distincte par type ; une prestation à double type
+// ressortait dans les deux filtres de recherche avec un seul badge.
+const serviceType = z
+  .array(z.string())
+  .transform(normalizeTypes)
+  .refine((t) => t.length === 1 && (t[0] === 'KOOK' || t[0] === 'COURS'), {
+    message: 'Une prestation doit avoir un seul type : KOOK ou COURS',
+  });
+
 export const createServiceSchema = z.object({
   title: z.string().trim().min(1, 'Le titre est requis'),
   description: z.string().optional(),
-  type: z.array(z.string()).min(1, 'Au moins un type est requis').transform(normalizeTypes),
+  type: serviceType,
   priceInCents: z.number().min(0, 'Le prix doit etre positif'),
   durationMinutes: z.number().min(0), // 0 pour les KOOK (durée désactivée en MVP)
   minGuests: z.number().int().min(1).optional(),
@@ -47,7 +57,7 @@ export const createServiceSchema = z.object({
 export const updateServiceSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
-  type: z.array(z.string()).optional().transform((t) => (t ? normalizeTypes(t) : t)),
+  type: serviceType.optional(),
   priceInCents: z.number().min(0).optional(),
   durationMinutes: z.number().min(0).optional(),
   minGuests: z.number().optional(),
