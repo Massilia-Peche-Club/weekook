@@ -29,6 +29,11 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
+// Derrière Nginx (1 proxy) : req.ip = vraie IP du visiteur (X-Forwarded-For).
+// Sans ce réglage, tous les visiteurs avaient l'IP de Nginx et partageaient
+// le même compteur de limitation (connexion, mot de passe oublié, contact…).
+app.set('trust proxy', 1);
+
 // ── Security headers (Helmet with 13 security headers) ──
 app.use(
   helmet({
