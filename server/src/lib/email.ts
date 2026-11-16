@@ -40,7 +40,7 @@ export async function sendNewMessageNotification(
 
   try {
     console.log(`[email] Sending via Resend to ${receiverEmail}...`);
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: 'Weekook <notifications@weekook.com>',
       to: receiverEmail,
       subject: `Nouveau message de ${senderName} sur Weekook`,
@@ -69,6 +69,10 @@ export async function sendNewMessageNotification(
         </div>
       `,
     });
+    if (error) {
+      console.error('[email] Failed to send notification:', error);
+      return;
+    }
     console.log(`[email] Sent OK to ${receiverEmail}`);
   } catch (err) {
     // Email failure ne doit pas impacter la réponse API
@@ -119,7 +123,12 @@ async function sendEmail(to: string, subject: string, html: string, label: strin
   if (!resend) return;
   try {
     console.log(`[email] Sending "${label}" to ${to}...`);
-    await resend.emails.send({ from: 'Weekook <notifications@weekook.com>', to, subject, html });
+    // Resend ne lève pas d'exception en cas de refus : l'erreur est dans la réponse
+    const { error } = await resend.emails.send({ from: 'Weekook <notifications@weekook.com>', to, subject, html });
+    if (error) {
+      console.error(`[email] Failed "${label}" to ${to}:`, error);
+      return;
+    }
     console.log(`[email] Sent OK: "${label}" to ${to}`);
   } catch (err) {
     console.error(`[email] Failed "${label}" to ${to}:`, err);

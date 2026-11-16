@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 
-const requests = new Map<string, { count: number; resetTime: number }>();
-
+// Chaque limiteur a son propre compteur par IP. (Un compteur unique partagé faisait que
+// 5 connexions ratées bloquaient ensuite « Mot de passe oublié » pendant 15 min.)
 export function rateLimit(maxRequests: number = 5, windowMs: number = 15 * 60 * 1000) {
+  const requests = new Map<string, { count: number; resetTime: number }>();
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();

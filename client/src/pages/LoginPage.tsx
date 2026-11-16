@@ -40,6 +40,7 @@ const LoginPage = () => {
   const [showForgotDialog, setShowForgotDialog] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle');
+  const [forgotError, setForgotError] = useState('');
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +48,8 @@ const LoginPage = () => {
     try {
       await api.post('/auth/forgot-password', { email: forgotEmail });
       setForgotStatus('sent');
-    } catch {
+    } catch (err: any) {
+      setForgotError(err?.error || 'Une erreur est survenue. Réessayez.');
       setForgotStatus('error');
     }
   };
@@ -674,7 +676,7 @@ const LoginPage = () => {
                 />
               </div>
               {forgotStatus === 'error' && (
-                <p className="text-sm text-red-500">Une erreur est survenue. Réessayez.</p>
+                <p className="text-sm text-red-500">{forgotError}</p>
               )}
               <button
                 type="submit"
