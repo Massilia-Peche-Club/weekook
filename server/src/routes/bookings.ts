@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
+import { computeBookingPrice } from '../lib/pricing.js';
 import stripe from '../lib/stripe.js';
 import { executeStripeTransfer } from '../lib/bookingTransfer.js';
 import { authenticate, requireKooker } from '../middleware/auth.js';
@@ -263,17 +264,8 @@ router.post(
         throw new AppError('Ce kooker n\'accepte pas encore les paiements en ligne. Veuillez réessayer plus tard.', 400);
       }
 
-      // Auto-calculate total price
-      // Both COURS and KOOK: flat rate (forfait) for up to minGuests or kookBaseGuests (6),
-      // then extraGuestPriceInCents per guest beyond that.
-      const baseGuests = (service as any).minGuests ?? 6;
-      const extraGuests = Math.max(0, guests - baseGuests);
-      let totalPriceInCents = service.priceInCents + extraGuests * (service.extraGuestPriceInCents ?? 0);
-
-      // Surcoût ingrédients si le kooker fournit les courses
-      if (ingredientsSource === 'kooker' && service.ingredientsPricePerGuestInCents) {
-        totalPriceInCents += service.ingredientsPricePerGuestInCents * guests;
-      }
+      // Prix : forfait (minGuests, sinon config kookBaseGuests) + supplément au-delà + ingrédients
+      const totalPriceInCents = await computeBookingPrice(service as any, guests, ingredientsSource);
 
       // Create booking
       const booking = await prisma.booking.create({
@@ -578,15 +570,13 @@ router.put(
       if (isOwner && typeof guests === 'number' && guests !== booking.guests) {
         changes.push(`Convives : ${booking.guests} → ${guests}`);
         updateData.guests = guests;
-        // Recalculate price: COURS uses base + extra beyond 6, KOOK uses per-guest
+        // Recalcul du prix avec la même règle qu'à la création (ingrédients compris)
         const svc = await prisma.service.findUnique({
           where: { id: (booking.service as any).id },
-          select: { priceInCents: true, extraGuestPriceInCents: true, minGuests: true },
+          select: { priceInCents: true, extraGuestPriceInCents: true, minGuests: true, ingredientsPricePerGuestInCents: true },
         });
         if (svc) {
-          const base = svc.minGuests ?? 6;
-          const extra = Math.max(0, guests - base);
-          updateData.totalPriceInCents = svc.priceInCents + extra * (svc.extraGuestPriceInCents ?? 0);
+          updateData.totalPriceInCents = await computeBookingPrice(svc, guests, (booking as any).ingredientsSource);
         }
       }
       if (typeof notes !== 'undefined') {

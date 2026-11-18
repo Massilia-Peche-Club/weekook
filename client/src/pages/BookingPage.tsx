@@ -18,7 +18,8 @@ interface ServiceDetail {
   priceInCents: number;
   extraGuestPriceInCents: number | null;
   durationMinutes: number;
-  minGuests: number;
+  minGuests: number;          // minimum réservable (1 si non renseigné)
+  forfaitGuests: number | null; // personnes incluses dans le forfait (null = config admin)
   maxGuests: number;
   type: string;
   specialties: string[];
@@ -117,6 +118,16 @@ export default function BookingPage() {
 
   // Data state
   const [service, setService] = useState<ServiceDetail | null>(null);
+  // Forfait par défaut (config admin kookBaseGuests) pour les offres sans minGuests
+  const [configBaseGuests, setConfigBaseGuests] = useState(6);
+  useEffect(() => {
+    api.get<{ kookBaseGuests?: number }>('/admin/config/public')
+      .then((res) => {
+        const n = Number(res.data?.kookBaseGuests);
+        if (Number.isFinite(n) && n > 0) setConfigBaseGuests(n);
+      })
+      .catch(() => {});
+  }, []);
   const [availabilities, setAvailabilities] = useState<Availability[]>([]);
   const [confirmedSlotsMap, setConfirmedSlotsMap] = useState<Map<string, Set<string>>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -174,6 +185,7 @@ export default function BookingPage() {
             extraGuestPriceInCents: s.extraGuestPriceInCents ?? null,
             durationMinutes: s.durationMinutes || 0,
             minGuests: min,
+            forfaitGuests: s.minGuests ?? null,
             maxGuests: s.maxGuests || 1,
             type: safeJsonParse<string[]>(s.type, []).join(', '),
             specialties: safeJsonParse<string[]>(s.specialties, []),
@@ -374,8 +386,11 @@ export default function BookingPage() {
       ? service.ingredientsPricePerGuestInCents * guests
       : 0;
 
-  // KOOK et COURS = forfait pour minGuests personnes + extra au-delà
-  const kookBaseGuests = service?.minGuests ?? 6;
+  // KOOK et COURS = forfait pour N personnes + supplément au-delà.
+  // N = minGuests de l'offre, sinon la valeur kookBaseGuests de la config admin (même règle
+  // que le serveur, server/src/lib/pricing.ts). Auparavant, un minGuests vide donnait 1 ici
+  // (forfait « jusqu'à 1 participant ») alors que le serveur calculait avec 6.
+  const kookBaseGuests = service?.forfaitGuests ?? configBaseGuests;
   const totalPriceCents = (service
     ? service.priceInCents + Math.max(0, guests - kookBaseGuests) * (service.extraGuestPriceInCents ?? 0)
     : 0) + ingredientSurchargeInCents;
