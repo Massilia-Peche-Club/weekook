@@ -1,7 +1,7 @@
 # Spécifications Fonctionnelles — Weekook V2
 
 **Projet** : Weekook — Plateforme de cuisine à domicile
-**Date** : 2026-11-01
+**Date** : 2026-11-18
 **Version** : 1.2
 **Usage** : Référence pour tests fonctionnels, recette et automatisation QA
 
@@ -338,21 +338,19 @@ URL : `chezmoi=1` (domicile — l'adresse elle-même n'apparaît pas dans l'URL)
 
 ### 6.5 Calcul du prix
 
-**COURS :**
+Même règle pour les **COURS** et les **KOOK**, appliquée à l'identique par la page de réservation et par le serveur (`server/src/lib/pricing.ts`) :
 ```
-Prix total = priceInCents
-           + max(0, guests - 6) × extraGuestPriceInCents
-           + (ingredientsSource === 'kooker' ? ingredientsPricePerGuestInCents × guests : 0)
+forfait     = minGuests de l'offre s'il est renseigné, sinon kookBaseGuests (config admin, défaut 6)
+Prix total  = priceInCents
+            + max(0, guests - forfait) × extraGuestPriceInCents
+            + (ingredientsSource === 'kooker' ? ingredientsPricePerGuestInCents × guests : 0)
 ```
-Le forfait de base couvre toujours **6 convives** (paramètre configurable admin `kookBaseGuests`, défaut = 6).
-
-**KOOK :**
-```
-Prix total = priceInCents
-           + max(0, guests - minGuests) × extraGuestPriceInCents
-           + (ingredientsSource === 'kooker' ? ingredientsPricePerGuestInCents × guests : 0)
-```
-Le forfait de base couvre `minGuests` convives (défini par le kooker à la création de l'offre).
+- Le forfait couvre de 1 à `forfait` participants / convives ; le supplément s'applique à partir du (`forfait` + 1)ᵉ
+- Le minimum réservable est `minGuests` s'il est renseigné, sinon 1
+- Le formulaire de création ne renseigne pas `minGuests` : les nouvelles offres suivent donc le forfait de la configuration admin
+- Exemple : cours à 60 € (forfait 6) + 12 €/participant → 60 € de 1 à 6 participants, 72 € pour 7, 96 € pour 9
+- Texte affiché : *"Forfait jusqu'à 6 participants : 60€ · Au-delà : +12€ par participant supplémentaire."*
+- Une modification du nombre de convives (`PUT /bookings/:id`) recalcule le prix avec la même règle, ingrédients compris
 
 ### 6.6 Étape 4 — Paiement Stripe
 
@@ -967,6 +965,7 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 | D13 | Spécialités | Kooker connecté | Créer une offre | Seules les spécialités de la liste admin sont proposées |
 | D14 | Spécialité hors liste via API | Kooker connecté | `POST /services` avec une spécialité inexistante | Erreur 400 *"Spécialité non proposée…"* |
 | D15 | Ancienne spécialité conservée | Offre avec spécialité retirée de la liste | Modifier l'offre sans toucher aux spécialités | Sauvegarde OK ; spécialité affichée « hors liste » |
+| C18 | Forfait par défaut (#86) | Offre COURS à 60 € + 12 €, `minGuests` vide | Réserver pour 1, 6, 7, 9 participants | Texte « Forfait jusqu'à 6 participants » ; 60 €, 60 €, 72 €, 96 € (écran = montant réservé) |
 | D07 | Modifier son offre | Propriétaire | Modifier et soumettre | Service mis à jour, toast confirmation |
 | D16 | Type en modification | Propriétaire | Ouvrir une offre KOOK, cliquer COURS | Le type bascule (un seul type coché), jamais les deux |
 | D17 | Double type via API | Kooker connecté | `POST /services` avec `type: ["KOOK","COURS"]` | Erreur 400 *"Une prestation doit avoir un seul type : KOOK ou COURS"* |
@@ -1034,4 +1033,4 @@ Les middlewares `requireKooker` et `requireAdmin` retournent **403** (Forbidden)
 
 ---
 
-*Document généré le 2026-10-02, mis à jour le 2026-11-01 — à maintenir à jour lors de chaque évolution fonctionnelle.*
+*Document généré le 2026-10-02, mis à jour le 2026-11-18 — à maintenir à jour lors de chaque évolution fonctionnelle.*

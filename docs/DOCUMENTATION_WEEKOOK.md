@@ -276,7 +276,7 @@ Déclenchée quand le kooker termine son onboarding Stripe. Conditions (toutes r
 | `priceInCents` | number | Oui | ≥ 0 (stocké en centimes) |
 | `durationMinutes` | number | Oui | ≥ 0. **KOOK : 0** (durée désactivée en MVP, ni saisie ni affichée) ; COURS : ≥ 1 côté formulaire |
 | `description` | string | Non | Max 2000 caractères |
-| `minGuests` | number | Non | |
+| `minGuests` | number | Non | Personnes incluses dans le forfait et minimum réservable ; vide → forfait = `kookBaseGuests` (config admin), minimum = 1 |
 | `maxGuests` | number | Non | Défaut 1 |
 | `allergens` | string[] | Non | |
 | `constraints` | string[] | Non | |
@@ -414,7 +414,7 @@ Autocomplétion via les API publiques françaises (`server/src/lib/geo.ts`, time
 **Règles de création :**
 1. Le service doit être `active: true`
 2. Le kooker doit avoir terminé l'onboarding Stripe (`stripeOnboardingComplete: true` + `stripeAccountId`)
-3. Calcul du prix : `service.priceInCents × guests`
+3. Calcul du prix (`server/src/lib/pricing.ts`, même règle COURS et KOOK) : `priceInCents + max(0, guests − forfait) × extraGuestPriceInCents` (+ ingrédients × guests si le kooker les fournit), avec `forfait` = `minGuests` de l'offre, sinon `kookBaseGuests` de la config admin (défaut 6)
 4. Création d'un PaymentIntent Stripe en mode `capture_method: 'manual'` (pré-autorisation)
 5. Statut initial : `pending` / `paymentStatus: pending_authorization`
 6. Un enregistrement Payment (audit) est créé avec type `authorization`

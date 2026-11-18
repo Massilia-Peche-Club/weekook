@@ -2,7 +2,7 @@
 
 **Project**: Weekook - Cuisine à Domicile Platform
 **Environment**: Development  
-**Date**: 2026-02-18 (mise à jour 2026-11-01)  
+**Date**: 2026-02-18 (mise à jour 2026-11-18)  
 **Tech Stack**: React 18 + TypeScript + Vite 6 + Express.js + Prisma + MySQL
 
 ---
@@ -745,8 +745,8 @@ model PageViewLog {
   - Checks service exists and is active
   - Verifies guests <= maxGuests
   - Auto-calculates price:
-    - **COURS**: base + (guests-6) * extraGuestPriceInCents (if >6)
-    - **KOOK**: base * guests
+    - `computeBookingPrice()` (`server/src/lib/pricing.ts`), COURS et KOOK : `priceInCents + max(0, guests - forfait) * extraGuestPriceInCents`
+    - `forfait` = `minGuests` de l'offre, sinon config `kookBaseGuests` (défaut 6) — même règle que BookingPage
     - **Ingredients**: +ingredientsPricePerGuestInCents * guests if ingredientsSource="kooker"
   - Checks kooker has Stripe account + onboarding complete
   - Creates Stripe PaymentIntent (manual_capture)
@@ -777,7 +777,7 @@ model PageViewLog {
 - **Logic**:
   - User can edit only if pending
   - Kooker can edit if not completed/cancelled
-  - Recalculates price if guests change (for KOOK type)
+  - Recalculates price if guests change (`computeBookingPrice`, COURS et KOOK, ingrédients compris)
   - Sends modification emails with change summary
 - **Returns**: Updated booking
 - **Status Codes**: 200, 400, 403, 404
